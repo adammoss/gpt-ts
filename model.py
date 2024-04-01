@@ -190,7 +190,7 @@ class AutoRegressiveRNN(nn.Module):
         # Embedding layer
         self.embedding = nn.Embedding(vocab_size, n_embd)
         # RNN layer
-        self.rnn = nn.GRU(n_embd, n_hidden, num_layers, batch_first=True)
+        self.rnn = nn.GRU(n_embd, n_hidden, num_layers, batch_first=True, dropout=dropout)
         # Fully connected layer that outputs the predictions
         self.lm_head = nn.Linear(n_hidden, vocab_size)
         if n_labels > 0:
