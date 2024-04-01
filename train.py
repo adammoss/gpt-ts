@@ -58,6 +58,11 @@ def parse_args():
         default="logs",
     )
     parser.add_argument(
+        "--wandb_api_key",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
         "--dropout",
         type=float,
         default=0.1,
@@ -106,6 +111,8 @@ def main(args):
     learning_rate = args.learning_rate
 
     wandb_log = args.logger == 'wandb'
+    if wandb_log and args.wandb_api_key is not None:
+        wandb.login(key=args.wandb_api_key)
 
     with open(os.path.join(dataset, "config.json")) as f:
         dataset_config = json.load(f)
