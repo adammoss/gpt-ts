@@ -1,6 +1,6 @@
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from torch.nn import functional as F
+from peft import LoraConfig, get_peft_model
 
 from model import GPTLanguageModel, AutoRegressiveRNN
 
@@ -38,9 +38,15 @@ def parse_args():
         choices=["relative_key", "absolute"],
     )
     parser.add_argument(
-        "--batch_size", type=int, default=128,
+        "--batch_size",
+        type=int,
+        default=128,
     )
-    parser.add_argument("--num_epochs", type=int, default=50)
+    parser.add_argument(
+        "--num_epochs",
+        type=int,
+        default=50
+    )
     parser.add_argument(
         "--learning_rate",
         type=float,
@@ -53,9 +59,9 @@ def parse_args():
         choices=["wandb"],
     )
     parser.add_argument(
-        "--logging_dir",
+        "--output_dir",
         type=str,
-        default="logs",
+        default=None,
     )
     parser.add_argument(
         "--wandb_api_key",
@@ -68,25 +74,35 @@ def parse_args():
         default=0.1,
     )
     parser.add_argument(
-        "--n_hidden", type=int, default=512,
+        "--n_hidden",
+        type=int,
+        default=512,
     )
     parser.add_argument(
-        "--n_positions", type=int, default=1024,
+        "--n_positions",
+        type=int,
+        default=1024,
     )
     parser.add_argument(
-        "--n_layer", type=int, default=6,
+        "--n_layer",
+        type=int,
+        default=6,
     )
     parser.add_argument(
-        "--n_embd", type=int, default=384,
+        "--n_embd",
+        type=int,
+        default=384,
     )
     parser.add_argument(
-        "--n_head", type=int, default=6,
+        "--n_head",
+        type=int,
+        default=6,
     )
     parser.add_argument(
         "--task",
         type=str,
-        default="lm",
-        choices=["lm"],
+        default="pretrain",
+        choices=["pretrain", "finetune_lm", "finetune_class"],
     )
     return parser.parse_args()
 
@@ -101,7 +117,7 @@ def main(args):
     n_head = args.n_head
     dropout = args.dropout
     n_hidden = args.n_hidden
-    use_lm_head = args.task == "lm"
+    use_lm_head = args.task in ["pretrain", "finetune_lm"]
 
     batch_size = args.batch_size
     epochs = args.num_epochs
@@ -113,6 +129,9 @@ def main(args):
     wandb_log = args.logger == 'wandb'
     if wandb_log and args.wandb_api_key is not None:
         wandb.login(key=args.wandb_api_key)
+
+    if args.output_dir is not None:
+        os.makedirs(args.output_dir, exist_ok=True)
 
     with open(os.path.join(dataset, "config.json")) as f:
         dataset_config = json.load(f)
@@ -140,6 +159,22 @@ def main(args):
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
     print(f'Model parameters: {params:,}')
+
+    if args.task in ["finetune_lm", "finetune_class"]:
+        target_modules = []
+        for n, m in model.named_modules():
+            if ('query' in n or 'value' in n) and type(m) == torch.nn.modules.linear.Linear:
+                target_modules.append(n)
+        if args.task == "finetune_lm":
+            modules_to_save = ["lm_head"]
+        else:
+            modules_to_save = ["class_head"]
+        config = LoraConfig(
+            target_modules=target_modules,
+            modules_to_save=modules_to_save,
+        )
+        model = get_peft_model(model, config)
+        model.print_trainable_parameters()
 
     if use_lm_head:
         train_sequences = []
@@ -214,28 +249,6 @@ def main(args):
         static = torch.tensor(static, dtype=torch.float32)
         return x_padded.to(device), y_padded.to(device), attention_mask.to(device), static.to(device)
 
-    def generate(model, idx, max_new_tokens, static=None, temperature=1.0, top_k=None):
-        # idx is (B, T) array of indices in the current context
-        model.eval()
-        for _ in range(max_new_tokens):
-            # crop idx to the last block_size tokens
-            idx_cond = idx[:, -n_positions:]
-            # get the predictions
-            output = model(idx_cond, static=static)
-            # focus only on the last time step
-            logits = output.logits[:, -1, :] / temperature  # becomes (B, C)
-            # optionally crop the logits to only the top k options
-            if top_k is not None:
-                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < v[:, [-1]]] = -float('Inf')
-            # apply softmax to get probabilities
-            probs = F.softmax(logits, dim=-1)  # (B, C)
-            # sample from the distribution
-            idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
-            # append sampled index to the running sequence
-            idx = torch.cat((idx, idx_next), dim=1)  # (B, T+1)
-        return idx
-
     @torch.no_grad()
     def estimate_loss(eval_iters):
         out = {}
@@ -277,7 +290,7 @@ def main(args):
 
     if wandb_log:
         run = wandb.init(
-            project='plasticc',
+            project=args.dataset,
             config=config,
         )
 
@@ -295,7 +308,10 @@ def main(args):
                 best_loss = metrics['val/loss']
                 best_iter = iter
                 if iter > min_iters_save:
-                    torch.save(model.state_dict(), 'plasticc/%s_weights.pt' % iter)
+                    if args.output_dir is not None:
+                        torch.save(model.state_dict(), '%s/best_weights.pt' % args.output_dir)
+                    else:
+                        torch.save(model.state_dict(), '%s/best_weights.pt' % dataset)
             if wandb_log:
                 wandb.log(metrics)
             print(
