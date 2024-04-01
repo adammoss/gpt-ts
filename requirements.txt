@@ -1,0 +1,6 @@
+torch
+transformers
+peft
+wandb
+pandas 
+scikit-learn
