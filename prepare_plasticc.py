@@ -66,7 +66,7 @@ if not os.path.exists("plasticc"):
     os.makedirs("plasticc")
 
 for file in files + test_files:
-    if not os.path.isfile(file):
+    if not os.path.isfile(os.path.join("plasticc", file)):
         urllib.request.urlretrieve("https://zenodo.org/record/2539456/files/%s" % file, os.path.join("plasticc", file))
 
 df_train_meta = pd.read_csv("plasticc/plasticc_train_metadata.csv.gz")
