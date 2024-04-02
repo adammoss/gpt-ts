@@ -240,6 +240,11 @@ def main(args):
     training_config['num_train'] = num_train_sequences
     training_config['num_test'] = num_test_sequences
 
+    training_ids = np.array([x['object_id'] for x in train_sequences], dtype=np.int64)
+    np.save(os.path.join(args.output_dir, "training_ids.np"), training_ids)
+    test_ids = np.array([x['object_id'] for x in test_sequences], dtype=np.int64)
+    np.save(os.path.join(args.output_dir, "test_ids.np"), test_ids)
+
     def get_batch(split, batch_size=32, shift=True, repeat_class=True):
         # generate a small batch of data of inputs x and targets y
         # Hugging face models expect non shifted labels
