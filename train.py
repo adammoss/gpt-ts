@@ -237,6 +237,9 @@ def main(args):
     print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
     print('Optimal model parameters (Chinchilla paper): %s' % int(num_train_tokens / 20))
 
+    training_config['num_train'] = num_train_sequences
+    training_config['num_test'] = num_test_sequences
+
     def get_batch(split, batch_size=32, shift=True, repeat_class=True):
         # generate a small batch of data of inputs x and targets y
         # Hugging face models expect non shifted labels
