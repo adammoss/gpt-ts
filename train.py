@@ -160,8 +160,12 @@ def main(args):
         model_config["n_head"] = n_head
         model_config["position_embedding"] = position_embedding
 
-    with open(os.path.join(args.output_dir, "model_config.json")) as f:
-        json.dump(model_config, f)
+    if args.output_dir is not None:
+        with open(os.path.join(args.output_dir, "model_config.json"), "w") as f:
+            json.dump(model_config, f)
+    else:
+        with open(os.path.join(dataset, "model_config.json"), "w") as f:
+            json.dump(model_config, f)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
