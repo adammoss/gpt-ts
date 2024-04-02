@@ -167,6 +167,12 @@ def main(args):
         with open(os.path.join(dataset, "model_config.json"), "w") as f:
             json.dump(model_config, f)
 
+    training_config = {
+        "learning_rate": learning_rate,
+        "batch_size": batch_size,
+        "test_fraction": args.test_fraction,
+    }
+
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if model_type == 'gpt':
@@ -302,7 +308,7 @@ def main(args):
     if wandb_log:
         run = wandb.init(
             project=args.dataset,
-            config={**model_config, **dataset_config},
+            config={**model_config, **dataset_config, **training_config},
         )
 
     best_loss = np.inf
