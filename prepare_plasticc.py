@@ -103,7 +103,7 @@ def load_sequences(df_meta, df, augment_factor=1):
         class_label = class_keys[int(row[1])]
         static = list(row[2:])
         for i in range(augment_factor):
-            if len(token_augs[i][id]) > 2:
+            if len(token_augs[i][id]) >= 2:
                 sequences.append({"x": token_augs[i][id], "class": class_label, "static": static, "object_id": id})
     return sequences
 
