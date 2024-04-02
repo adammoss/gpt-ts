@@ -101,8 +101,8 @@ def parse_args():
     parser.add_argument(
         "--task",
         type=str,
-        default="pretrain",
-        choices=["pretrain", "finetune_lm", "finetune_class"],
+        default="pretrain_lm",
+        choices=["pretrain_lm", "pretrain_class", "finetune_lm", "finetune_class"],
     )
     parser.add_argument(
         "--test_fraction",
@@ -122,7 +122,7 @@ def main(args):
     n_head = args.n_head
     dropout = args.dropout
     n_hidden = args.n_hidden
-    use_lm_head = args.task in ["pretrain", "finetune_lm"]
+    use_lm_head = args.task in ["pretrain_lm", "finetune_lm"]
 
     batch_size = args.batch_size
     epochs = args.num_epochs
