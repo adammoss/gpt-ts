@@ -104,6 +104,11 @@ def parse_args():
         default="pretrain",
         choices=["pretrain", "finetune_lm", "finetune_class"],
     )
+    parser.add_argument(
+        "--test_fraction",
+        type=float,
+        default=0.1,
+    )
     return parser.parse_args()
 
 
@@ -145,16 +150,16 @@ def main(args):
     if model_type == 'gpt':
         model = GPTLanguageModel(vocab_size, n_head, n_embd, n_positions, n_layer, dropout=dropout,
                                  n_static=n_static, n_labels=n_labels,
-                                 position_embedding=position_embedding)
+                                 position_embedding=position_embedding, use_lm_head=use_lm_head)
     elif model_type == 'rnn':
         model = AutoRegressiveRNN(vocab_size, n_embd, n_hidden, n_static=n_static, n_labels=n_labels,
-                                  num_layers=n_layer, dropout=dropout)
+                                  num_layers=n_layer, dropout=dropout, use_lm_head=use_lm_head)
 
     model = model.to(device)
     print(model)
 
     if args.model_weights is not None:
-        model.load_state_dict(torch.load(args.model_weights))
+        model.load_state_dict(torch.load(args.model_weights, map_location=torch.device(device)))
 
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
@@ -176,15 +181,15 @@ def main(args):
         model = get_peft_model(model, config)
         model.print_trainable_parameters()
 
-    if use_lm_head:
+    if args.test_fraction > 0:
         train_sequences = []
         test_sequences = []
         train_split, test_split = train_test_split(list(np.load(os.path.join(dataset, 'train.npy'), allow_pickle=True)),
-                                                   test_size=0.1, random_state=42)
+                                                   test_size=args.test_fraction, random_state=42)
         train_sequences += train_split
         test_sequences += test_split
         train_split, test_split = train_test_split(list(np.load(os.path.join(dataset, 'test.npy'), allow_pickle=True)),
-                                                   test_size=0.1, random_state=42)
+                                                   test_size=args.test_fraction, random_state=42)
         train_sequences += train_split
         test_sequences += test_split
     else:

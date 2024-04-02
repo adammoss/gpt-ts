@@ -114,7 +114,7 @@ class Block(nn.Module):
 class GPTLanguageModel(nn.Module):
 
     def __init__(self, vocab_size, n_head, n_embd, n_positions, n_layer, dropout=0, n_static=0, n_labels=0,
-                 position_embedding='absolute'):
+                 position_embedding='absolute', use_lm_head=True):
         super().__init__()
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
@@ -125,6 +125,9 @@ class GPTLanguageModel(nn.Module):
         self.lm_head = nn.Linear(n_embd, vocab_size)
         if n_labels > 0:
             self.class_head = nn.Linear(n_embd, n_labels)
+            self.use_lm_head = use_lm_head
+        else:
+            self.use_lm_head = False
         if n_static > 0:
             self.static = nn.Linear(n_static, n_embd)
         self.position_embedding = position_embedding
@@ -140,7 +143,7 @@ class GPTLanguageModel(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, labels=None, attention_mask=None, static=None, use_lm_head=True):
+    def forward(self, idx, labels=None, attention_mask=None, static=None):
         B, T = idx.shape
 
         # idx and targets are both (B,T) tensor of integers
@@ -155,7 +158,7 @@ class GPTLanguageModel(nn.Module):
         for block in self.blocks:
             x = block(x, attention_mask=attention_mask)  # (B,T,C)
         x = self.ln_f(x)  # (B,T,C)
-        if use_lm_head:
+        if self.use_lm_head:
             logits = self.lm_head(x)  # (B,T,vocab_size)
         else:
             logits = self.class_head(x)  # (B,T,num_labels)
@@ -172,7 +175,7 @@ class GPTLanguageModel(nn.Module):
 
 class AutoRegressiveRNN(nn.Module):
     def __init__(self, vocab_size, n_embd, n_hidden, n_labels=0,
-                 num_layers=1, dropout=0, n_static=0):
+                 num_layers=1, dropout=0, n_static=0, use_lm_head=True):
         """
         Initialize the autoregressive RNN model with an embedding layer.
 
@@ -195,10 +198,13 @@ class AutoRegressiveRNN(nn.Module):
         self.lm_head = nn.Linear(n_hidden, vocab_size)
         if n_labels > 0:
             self.class_head = nn.Linear(n_hidden, n_labels)
+            self.use_lm_head = use_lm_head
+        else:
+            self.use_lm_head = False
         if n_static > 0:
             self.static = nn.Linear(n_static, n_embd)
 
-    def forward(self, x, labels=None, attention_mask=None, static=None, use_lm_head=True):
+    def forward(self, x, labels=None, attention_mask=None, static=None):
         """
         Forward pass through the model.
 
@@ -223,7 +229,7 @@ class AutoRegressiveRNN(nn.Module):
         # Forward propagate the RNN
         out, _ = self.rnn(x, h0)
 
-        if use_lm_head:
+        if self.use_lm_head:
             logits = self.lm_head(out)  # (B,T,vocab_size)
         else:
             logits = self.class_head(out)  # (B,T,num_labels)
