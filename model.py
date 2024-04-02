@@ -163,14 +163,28 @@ class GPTLanguageModel(nn.Module):
         else:
             logits = self.class_head(x)  # (B,T,num_labels)
 
+        if attention_mask is not None:
+            seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+            last_logits = logits[torch.arange(B), seqlens_in_batch - 1]
+        else:
+            last_logits = logits[torch.arange(B), -1]
+
         if labels is None:
             loss = None
+            last_loss = None
         else:
             B, T, C = logits.shape
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
+            if attention_mask is not None:
+                seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+                last_labels = labels[torch.arange(B), seqlens_in_batch - 1]
+                last_loss = F.cross_entropy(last_logits, last_labels)
+            else:
+                last_labels = labels[torch.arange(B), -1]
+                last_loss = F.cross_entropy(last_logits, last_labels)
 
         # For compat with Hugging face output
-        return SimpleNamespace(logits=logits, loss=loss)
+        return SimpleNamespace(logits=logits, loss=loss, last_logits=last_logits, last_loss=last_loss)
 
 
 class AutoRegressiveRNN(nn.Module):
