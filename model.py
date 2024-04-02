@@ -255,4 +255,4 @@ class AutoRegressiveRNN(nn.Module):
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
 
         # For compat with Hugging face output
-        return SimpleNamespace(logits=logits, loss=loss)
+        return SimpleNamespace(logits=logits, loss=loss, last_logits=None, last_loss=None)
