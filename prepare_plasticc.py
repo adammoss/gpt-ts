@@ -85,7 +85,7 @@ tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins
 
 config["vocab_size"] = tokenizer.vocab_size
 
-with open("plasticc/config.json", "w") as f:
+with open("plasticc/dataset_config.json", "w") as f:
     json.dump(config, f)
 
 

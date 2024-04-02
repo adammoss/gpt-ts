@@ -135,15 +135,33 @@ def main(args):
     if wandb_log and args.wandb_api_key is not None:
         wandb.login(key=args.wandb_api_key)
 
-    if args.output_dir is not None:
-        os.makedirs(args.output_dir, exist_ok=True)
-
-    with open(os.path.join(dataset, "config.json")) as f:
+    with open(os.path.join(dataset, "dataset_config.json")) as f:
         dataset_config = json.load(f)
 
     vocab_size = dataset_config["vocab_size"]
     n_static = len(dataset_config["static_features"])
     n_labels = dataset_config["num_labels"]
+
+    if args.output_dir is not None:
+        os.makedirs(args.output_dir, exist_ok=True)
+
+    model_config = {
+        "model_type": model_type,
+        "dropout": dropout,
+        "n_static": n_static,
+        "n_labels": n_labels,
+        "n_embd": n_embd,
+        "n_layer": n_layer,
+    }
+    if model_type == "rnn":
+        model_config["n_hidden"] = n_hidden
+    else:
+        model_config["n_positions"] = n_positions
+        model_config["n_head"] = n_head
+        model_config["position_embedding"] = position_embedding
+
+    with open(os.path.join(args.output_dir, "model_config.json")) as f:
+        json.dump(model_config, f)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -277,26 +295,10 @@ def main(args):
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
-    config = {
-        "model_type": model_type,
-        "batch_size": batch_size,
-        "lr": learning_rate,
-        "dropout": dropout,
-    }
-
-    if model_type == "rnn":
-        config["n_hidden"] = n_hidden
-    else:
-        config["n_positions"] = n_positions
-        config["n_layer"] = n_layer
-        config["n_embd"] = n_embd
-        config["n_head"] = n_head
-        config["position_embedding"] = position_embedding
-
     if wandb_log:
         run = wandb.init(
             project=args.dataset,
-            config=config,
+            config={**model_config, **dataset_config},
         )
 
     best_loss = np.inf
