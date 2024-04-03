@@ -380,9 +380,11 @@ def main(args):
         optimizer.zero_grad(set_to_none=True)
 
         if args.task == "finetune_last_class" and output.last_loss is not None:
-            output.last_loss.backward()
+            loss = 0.01 * output.loss + output.last_loss
+            loss.backward()
         else:
-            output.loss.backward()
+            loss = output.loss
+        loss.backward()
         optimizer.step()
 
 
