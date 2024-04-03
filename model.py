@@ -165,8 +165,8 @@ class GPTLanguageModel(nn.Module):
 
         if attention_mask is not None:
             seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
-            #last_logits = logits[torch.arange(B), seqlens_in_batch - 1]
-            last_logits = torch.sum(logits * attention_mask[:,:,None], axis=1) / seqlens_in_batch[:,None]
+            last_logits = logits[torch.arange(B), seqlens_in_batch - 1]
+            #last_logits = torch.sum(logits * attention_mask[:,:,None], axis=1) / seqlens_in_batch[:,None]
         else:
             last_logits = logits[torch.arange(B), -1]
 
