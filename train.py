@@ -102,12 +102,22 @@ def parse_args():
         "--task",
         type=str,
         default="pretrain_lm",
-        choices=["pretrain_lm", "pretrain_class", "finetune_lm", "finetune_class"],
+        choices=["pretrain_lm", "pretrain_class", "finetune_lm", "finetune_class", "finetune_last_class"],
     )
     parser.add_argument(
         "--test_fraction",
         type=float,
         default=0.1,
+    )
+    parser.add_argument(
+        "--eval_iters",
+        type=int,
+        default=200,
+    )
+    parser.add_argument(
+        "--eval_interval",
+        type=int,
+        default=500,
     )
     return parser.parse_args()
 
@@ -126,8 +136,8 @@ def main(args):
 
     batch_size = args.batch_size
     epochs = args.num_epochs
-    eval_iters = 200
-    eval_interval = 500
+    eval_iters = args.eval_iters
+    eval_interval = args.eval_interval
     min_iters_save = 500
     learning_rate = args.learning_rate
 
@@ -193,7 +203,7 @@ def main(args):
     params = sum([np.prod(p.size()) for p in model_parameters])
     print(f'Model parameters: {params:,}')
 
-    if args.task in ["finetune_lm", "finetune_class"]:
+    if args.task in ["finetune_lm", "finetune_class", "finetune_last_class"]:
         target_modules = []
         for n, m in model.named_modules():
             if ('query' in n or 'value' in n) and type(m) == torch.nn.modules.linear.Linear:
@@ -362,7 +372,11 @@ def main(args):
         # evaluate the loss
         output = model(X, labels=Y, attention_mask=attention_mask, static=static)
         optimizer.zero_grad(set_to_none=True)
-        output.loss.backward()
+
+        if args.task == "finetune_last_class":
+            output.last_loss.backward()
+        else:
+            output.loss.backward()
         optimizer.step()
 
 
