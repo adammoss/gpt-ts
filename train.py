@@ -270,7 +270,7 @@ def main(args):
         np.save(os.path.join(dataset, "training_ids.npy"), training_ids)
         np.save(os.path.join(dataset, "test_ids.npy"), test_ids)
 
-    def get_batch(split, batch_size=32, shift=True, repeat_class=True):
+    def get_batch(split, batch_size=32, shift=True, repeat_class=False):
         # generate a small batch of data of inputs x and targets y
         # Hugging face models expect non shifted labels
         if split == 'train':
@@ -324,8 +324,8 @@ def main(args):
             last_losses = torch.zeros(eval_iters)
             correct = 0
             total = 0
-            last_correct = 0
-            last_total = 0
+            #last_correct = 0
+            #last_total = 0
             for k in range(eval_iters):
                 X, Y, attention_mask, static = get_batch(split)
                 output = model(X, labels=Y, attention_mask=attention_mask, static=static)
@@ -334,13 +334,13 @@ def main(args):
                     last_losses[k] = output.last_loss.item()
                 correct += torch.sum(Y == torch.argmax(output.logits, dim=-1))
                 total += torch.sum(attention_mask)
-                if output.last_logits is not None and output.last_labels is not None:
-                    last_correct += torch.sum(output.last_labels == torch.argmax(output.last_logits, dim=-1))
-                last_total += X.shape[0]
+                #if output.last_logits is not None and output.last_labels is not None:
+                #    last_correct += torch.sum(output.last_labels == torch.argmax(output.last_logits, dim=-1))
+                #last_total += X.shape[0]
             out['%s/loss' % split] = losses.mean()
-            out['%s/last_loss' % split] = last_losses.mean()
+            #out['%s/last_loss' % split] = last_losses.mean()
             out['%s/accuracy' % split] = (correct / total).item()
-            out['%s/last_accuracy' % split] = last_correct.item() / last_total
+            #out['%s/last_accuracy' % split] = last_correct.item() / last_total
         model.train()
         return out
 

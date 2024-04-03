@@ -161,33 +161,26 @@ class GPTLanguageModel(nn.Module):
         if self.use_lm_head:
             logits = self.lm_head(x)  # (B,T,vocab_size)
         else:
-            logits = self.class_head(x)  # (B,T,num_labels)
-
-        if attention_mask is not None:
-            seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
-            #last_logits = logits[torch.arange(B), seqlens_in_batch - 1]
-            last_logits = torch.sum(logits * attention_mask[:,:,None], axis=1) / seqlens_in_batch[:,None]
-        else:
-            last_logits = logits[torch.arange(B), -1]
+            if attention_mask is not None:
+                seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+                x = torch.sum(x * attention_mask[:, :, None], axis=1) / seqlens_in_batch[:, None]
+            else:
+                x = torch.mean(x, axis=1)
+            x = x[:, None, :]
+            print(x.size())
+            logits = self.class_head(x)  # (B,1,num_labels)
+            print(logits.size())
+            print(labels.size())
 
         if labels is None:
             loss = None
-            last_loss = None
-            last_labels = None
         else:
             B, T, C = logits.shape
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
-            if attention_mask is not None:
-                seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
-                last_labels = labels[torch.arange(B), seqlens_in_batch - 1]
-                last_loss = F.cross_entropy(last_logits, last_labels)
-            else:
-                last_labels = labels[torch.arange(B), -1]
-                last_loss = F.cross_entropy(last_logits, last_labels)
 
         # For compat with Hugging face output
-        return SimpleNamespace(logits=logits, loss=loss, last_logits=last_logits, last_loss=last_loss,
-                               last_labels=last_labels)
+        return SimpleNamespace(logits=logits, loss=loss, last_logits=None, last_loss=None,
+                               last_labels=None)
 
 
 class AutoRegressiveRNN(nn.Module):
