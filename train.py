@@ -314,7 +314,7 @@ def main(args):
                 correct += torch.sum(Y == torch.argmax(output.logits, dim=-1))
                 total += torch.sum(attention_mask)
                 if output.last_logits is not None and output.last_labels is not None:
-                    correct += torch.sum(output.last_labels == torch.argmax(output.last_logits, dim=-1))
+                    last_correct += torch.sum(output.last_labels == torch.argmax(output.last_logits, dim=-1))
                 last_total += X.shape[0]
             out['%s/loss' % split] = losses.mean()
             out['%s/last_loss' % split] = last_losses.mean()
