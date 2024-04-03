@@ -124,6 +124,11 @@ def parse_args():
         type=int,
         default=500,
     )
+    parser.add_argument(
+        "--last_weight",
+        type=float,
+        default=0.9,
+    )
     return parser.parse_args()
 
 
@@ -380,7 +385,7 @@ def main(args):
         optimizer.zero_grad(set_to_none=True)
 
         if args.task == "finetune_last_class" and output.last_loss is not None:
-            loss = 0.01 * output.loss + output.last_loss
+            loss = (1 - args.last_weight) * output.loss + args.last_weight * output.last_loss
         else:
             loss = output.loss
         loss.backward()
