@@ -119,6 +119,11 @@ def parse_args():
         type=int,
         default=500,
     )
+    parser.add_argument(
+        "--min_iters_save",
+        type=int,
+        default=500,
+    )
     return parser.parse_args()
 
 
@@ -138,7 +143,7 @@ def main(args):
     epochs = args.num_epochs
     eval_iters = args.eval_iters
     eval_interval = args.eval_interval
-    min_iters_save = 500
+    min_iters_save = args.min_iters_save
     learning_rate = args.learning_rate
 
     wandb_log = args.logger == 'wandb'
@@ -178,6 +183,7 @@ def main(args):
             json.dump(model_config, f)
 
     training_config = {
+        "task": args.task,
         "learning_rate": learning_rate,
         "batch_size": batch_size,
         "test_fraction": args.test_fraction,
@@ -373,7 +379,7 @@ def main(args):
         output = model(X, labels=Y, attention_mask=attention_mask, static=static)
         optimizer.zero_grad(set_to_none=True)
 
-        if args.task == "finetune_last_class":
+        if args.task == "finetune_last_class" and output.last_loss is not None:
             output.last_loss.backward()
         else:
             output.loss.backward()
