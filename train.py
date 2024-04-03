@@ -300,15 +300,19 @@ def main(args):
         model.eval()
         for split in ['train', 'val']:
             losses = torch.zeros(eval_iters)
+            last_losses = torch.zeros(eval_iters)
             correct = 0
             total = 0
             for k in range(eval_iters):
                 X, Y, attention_mask, static = get_batch(split)
                 output = model(X, labels=Y, attention_mask=attention_mask, static=static)
                 losses[k] = output.loss.item()
+                if output.last_loss is not None:
+                    last_losses[k] = output.last_loss.item()
                 correct += torch.sum(Y == torch.argmax(output.logits, dim=-1))
                 total += torch.sum(attention_mask)
             out['%s/loss' % split] = losses.mean()
+            out['%s/last_loss' % split] = last_losses.mean()
             out['%s/accuracy' % split] = (correct / total).item()
         model.train()
         return out

@@ -172,6 +172,7 @@ class GPTLanguageModel(nn.Module):
         if labels is None:
             loss = None
             last_loss = None
+            last_labels = None
         else:
             B, T, C = logits.shape
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
@@ -184,7 +185,8 @@ class GPTLanguageModel(nn.Module):
                 last_loss = F.cross_entropy(last_logits, last_labels)
 
         # For compat with Hugging face output
-        return SimpleNamespace(logits=logits, loss=loss, last_logits=last_logits, last_loss=last_loss)
+        return SimpleNamespace(logits=logits, loss=loss, last_logits=last_logits, last_loss=last_loss,
+                               last_labels=last_labels)
 
 
 class AutoRegressiveRNN(nn.Module):
@@ -255,4 +257,4 @@ class AutoRegressiveRNN(nn.Module):
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
 
         # For compat with Hugging face output
-        return SimpleNamespace(logits=logits, loss=loss, last_logits=None, last_loss=None)
+        return SimpleNamespace(logits=logits, loss=loss, last_logits=None, last_loss=None, last_labels=None)
