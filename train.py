@@ -381,7 +381,6 @@ def main(args):
 
         if args.task == "finetune_last_class" and output.last_loss is not None:
             loss = 0.01 * output.loss + output.last_loss
-            loss.backward()
         else:
             loss = output.loss
         loss.backward()
