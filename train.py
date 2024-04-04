@@ -132,12 +132,20 @@ def parse_args():
     parser.add_argument(
         "--train_file",
         type=str,
-        default='train.npy',
+        action='append',
+        default=[],
+    )
+    parser.add_argument(
+        "--val_file",
+        type=str,
+        action='append',
+        default=[],
     )
     parser.add_argument(
         "--test_file",
         type=str,
-        default='test.npy',
+        action='append',
+        default=[],
     )
     return parser.parse_args()
 
@@ -160,6 +168,10 @@ def main(args):
     eval_interval = args.eval_interval
     min_iters_save = args.min_iters_save
     learning_rate = args.learning_rate
+
+    train_files = list(set(args.train_file))
+    val_files = list(set(args.val_file))
+    test_files = list(set(args.test_file))
 
     wandb_log = args.logger == 'wandb'
     if wandb_log and args.wandb_api_key is not None:
@@ -240,44 +252,53 @@ def main(args):
     if args.model_weights is not None:
         model.load_state_dict(torch.load(args.model_weights, map_location=torch.device(device)))
 
-    if args.test_fraction > 0:
-        train_sequences = []
-        test_sequences = []
-        train_split, test_split = train_test_split(list(np.load(os.path.join(dataset, args.train_file), allow_pickle=True)),
-                                                   test_size=args.test_fraction, random_state=42)
-        train_sequences += train_split
-        test_sequences += test_split
-        train_split, test_split = train_test_split(list(np.load(os.path.join(dataset, args.test_file), allow_pickle=True)),
-                                                   test_size=args.test_fraction, random_state=42)
-        train_sequences += train_split
-        test_sequences += test_split
+    train_sequences = []
+    val_sequences = []
+    test_sequences = []
+    for train_file in train_files:
+        train_sequences += list(np.load(train_file, allow_pickle=True))
+    for test_file in test_files:
+        test_sequences += list(np.load(test_file, allow_pickle=True))
+    if len(val_files) > 0:
+        for val_file in val_files:
+            val_sequences += list(np.load(val_file, allow_pickle=True))
     else:
-        train_sequences = list(np.load(os.path.join(dataset, args.train_file), allow_pickle=True))
-        test_sequences = list(np.load(os.path.join(dataset, args.test_file), allow_pickle=True))
+        # No test files supplied so create train test split
+        train_sequences, val_sequences = train_test_split(train_sequences, test_size=args.test_fraction,
+                                                          random_state=42)
 
     num_train_sequences = len(train_sequences)
+    num_val_sequences = len(val_sequences)
     num_test_sequences = len(test_sequences)
     num_train_tokens = len([x for xs in train_sequences for x in xs['x']])
+    num_val_tokens = len([x for xs in val_sequences for x in xs['x']])
     num_test_tokens = len([x for xs in test_sequences for x in xs['x']])
 
     print('Num train sequences: %s' % num_train_sequences)
+    print('Num val sequences: %s' % num_val_sequences)
     print('Num test sequences: %s' % num_test_sequences)
     print('Num train tokens: %s' % num_train_tokens)
+    print('Num val tokens: %s' % num_val_tokens)
     print('Num test tokens: %s' % num_test_tokens)
     print('Average train tokens: %s' % (num_train_tokens / num_train_sequences))
+    print('Average val tokens: %s' % (num_val_tokens / num_val_sequences))
     print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
     print('Optimal model parameters (Chinchilla paper): %s' % int(num_train_tokens / 20))
 
     training_config['num_train'] = num_train_sequences
+    training_config['num_val'] = num_val_sequences
     training_config['num_test'] = num_test_sequences
 
     training_ids = np.array([x['object_id'] for x in train_sequences], dtype=np.int64)
+    val_ids = np.array([x['object_id'] for x in val_sequences], dtype=np.int64)
     test_ids = np.array([x['object_id'] for x in test_sequences], dtype=np.int64)
     if args.output_dir is not None:
         np.save(os.path.join(args.output_dir, "training_ids.npy"), training_ids)
+        np.save(os.path.join(args.output_dir, "val_ids.npy"), val_ids)
         np.save(os.path.join(args.output_dir, "test_ids.npy"), test_ids)
     else:
         np.save(os.path.join(dataset, "training_ids.npy"), training_ids)
+        np.save(os.path.join(dataset, "val_ids.npy"), val_ids)
         np.save(os.path.join(dataset, "test_ids.npy"), test_ids)
 
     def get_batch(split, batch_size=32, shift=True, repeat_class=True):
@@ -288,7 +309,7 @@ def main(args):
         elif split == 'test':
             data = test_sequences
         elif split == 'val':
-            data = test_sequences
+            data = val_sequences
         else:
             raise ValueError
         x, y, static = [], [], []
@@ -329,7 +350,11 @@ def main(args):
     def estimate_loss(eval_iters):
         out = {}
         model.eval()
-        for split in ['train', 'val']:
+        if len(test_sequences) > 0:
+            splits = ['train', 'val', 'test']
+        else:
+            splits = ['train', 'val']
+        for split in splits:
             losses = torch.zeros(eval_iters)
             last_losses = torch.zeros(eval_iters)
             correct = 0
