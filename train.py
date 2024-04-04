@@ -129,6 +129,16 @@ def parse_args():
         type=float,
         default=0.9,
     )
+    parser.add_argument(
+        "--train_file",
+        type=str,
+        default='train.npy',
+    )
+    parser.add_argument(
+        "--test_file",
+        type=str,
+        default='test.npy',
+    )
     return parser.parse_args()
 
 
@@ -233,17 +243,17 @@ def main(args):
     if args.test_fraction > 0:
         train_sequences = []
         test_sequences = []
-        train_split, test_split = train_test_split(list(np.load(os.path.join(dataset, 'train.npy'), allow_pickle=True)),
+        train_split, test_split = train_test_split(list(np.load(os.path.join(dataset, args.train_file), allow_pickle=True)),
                                                    test_size=args.test_fraction, random_state=42)
         train_sequences += train_split
         test_sequences += test_split
-        train_split, test_split = train_test_split(list(np.load(os.path.join(dataset, 'test.npy'), allow_pickle=True)),
+        train_split, test_split = train_test_split(list(np.load(os.path.join(dataset, args.test_file), allow_pickle=True)),
                                                    test_size=args.test_fraction, random_state=42)
         train_sequences += train_split
         test_sequences += test_split
     else:
-        train_sequences = list(np.load(os.path.join(dataset, 'train.npy'), allow_pickle=True))
-        test_sequences = list(np.load(os.path.join(dataset, 'test.npy'), allow_pickle=True))
+        train_sequences = list(np.load(os.path.join(dataset, args.train_file), allow_pickle=True))
+        test_sequences = list(np.load(os.path.join(dataset, args.test_file), allow_pickle=True))
 
     num_train_sequences = len(train_sequences)
     num_test_sequences = len(test_sequences)
