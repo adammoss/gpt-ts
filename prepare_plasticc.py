@@ -7,7 +7,6 @@ import argparse
 
 from tokenizer import LCTokenizer
 
-
 class_keys = {
     6: 0,
     15: 1,
@@ -74,11 +73,15 @@ def parse_args():
         type=int,
         default=1,
     )
+    parser.add_argument(
+        "--out_suffix",
+        type=str,
+        default=None,
+    )
     return parser.parse_args()
 
 
 def main(args):
-
     if not os.path.exists("plasticc"):
         os.makedirs("plasticc")
 
@@ -112,7 +115,7 @@ def main(args):
         sequences = []
         token_augs = []
         for i in range(augment_factor):
-            token_augs.append(tokenizer.encode(df))
+            token_augs.append(tokenizer.encode(df, augment=i > 0))
         zipped = [df_meta["object_id"], df_meta["true_target"]]
         for static_feature in config["static_features"]:
             if static_feature in df_meta.columns:
@@ -127,14 +130,20 @@ def main(args):
         return sequences
 
     train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"])
-    np.save("plasticc/train_sn%s.npy" % args.sn, train_sequences)
+    if args.out_suffix is not None:
+        np.save("plasticc/train_%s.npy" % args.out_suffix, train_sequences)
+    else:
+        np.save("plasticc/train.npy", train_sequences)
 
     test_sequences = []
     for i, file in enumerate(test_files):
-            df_test = pd.read_csv(os.path.join("plasticc", file))
-            test_sequences += load_sequences(df_test_meta[df_test_meta["object_id"].isin(df_test["object_id"].values)],
-                                             df_test)
-    np.save("plasticc/test_sn%s.npy" % args.sn, test_sequences)
+        df_test = pd.read_csv(os.path.join("plasticc", file))
+        test_sequences += load_sequences(df_test_meta[df_test_meta["object_id"].isin(df_test["object_id"].values)],
+                                         df_test)
+    if args.out_suffix is not None:
+        np.save("plasticc/test_%s.npy" % args.out_suffix, test_sequences)
+    else:
+        np.save("plasticc/test.npy", test_sequences)
 
     num_train_sequences = len(train_sequences)
     num_test_sequences = len(test_sequences)
