@@ -121,14 +121,14 @@ def main(args):
         return sequences
 
     train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"])
-    np.save("plasticc/train_%s.npy" % args.sn, train_sequences)
+    np.save("plasticc/train_sn%s.npy" % args.sn, train_sequences)
 
     test_sequences = []
     for i, file in enumerate(test_files):
             df_test = pd.read_csv(os.path.join("plasticc", file))
             test_sequences += load_sequences(df_test_meta[df_test_meta["object_id"].isin(df_test["object_id"].values)],
                                              df_test)
-    np.save("plasticc/test_%s.npy" % args.sn, test_sequences)
+    np.save("plasticc/test_sn%s.npy" % args.sn, test_sequences)
 
     num_train_sequences = len(train_sequences)
     num_test_sequences = len(test_sequences)
