@@ -13,7 +13,7 @@ import argparse
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Simple example of a training script.")
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--dataset",
         type=str,
@@ -207,9 +207,6 @@ def main(args):
     model = model.to(device)
     print(model)
 
-    if args.model_weights is not None:
-        model.load_state_dict(torch.load(args.model_weights, map_location=torch.device(device)))
-
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
     print(f'Model parameters: {params:,}')
@@ -229,6 +226,9 @@ def main(args):
         )
         model = get_peft_model(model, config)
         model.print_trainable_parameters()
+
+    if args.model_weights is not None:
+        model.load_state_dict(torch.load(args.model_weights, map_location=torch.device(device)))
 
     if args.test_fraction > 0:
         train_sequences = []
@@ -344,7 +344,7 @@ def main(args):
         model.train()
         return out
 
-    estimate_loss(eval_iters)
+    metrics = estimate_loss(eval_iters)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 

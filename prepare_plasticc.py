@@ -3,6 +3,7 @@ import os.path
 import pandas as pd
 import numpy as np
 import json
+import argparse
 
 from tokenizer import LCTokenizer
 
@@ -31,7 +32,6 @@ class_keys = {
 config = {
     "num_bins": 500,
     "num_time_bins": 500,
-    "min_SN": 3,
     "augment_factor": 1,
     "max_delta_time": 1000,
     "min_flux": -10000,
@@ -62,62 +62,88 @@ test_files = [
     "plasticc_test_lightcurves_11.csv.gz",
 ]
 
-if not os.path.exists("plasticc"):
-    os.makedirs("plasticc")
 
-for file in files + test_files:
-    if not os.path.isfile(os.path.join("plasticc", file)):
-        urllib.request.urlretrieve("https://zenodo.org/record/2539456/files/%s" % file, os.path.join("plasticc", file))
-
-df_train_meta = pd.read_csv("plasticc/plasticc_train_metadata.csv.gz")
-df_train = pd.read_csv("plasticc/plasticc_train_lightcurves.csv.gz")
-print(np.percentile(df_train["flux"], [0.1, 99.9]))
-
-df_test_meta = pd.read_csv("plasticc/plasticc_test_metadata.csv.gz")
-for file in test_files:
-    df_test = pd.read_csv(os.path.join("plasticc", file))
-    print(file, np.percentile(df_test["flux"], [0.1, 99.9]))
-
-tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
-                        config["num_time_bins"], bands=config["bands"],
-                        transform=np.arcsinh, inverse_transform=np.sinh,
-                        min_SN=config["min_SN"])
-
-config["vocab_size"] = tokenizer.vocab_size
-
-with open("plasticc/dataset_config.json", "w") as f:
-    json.dump(config, f)
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--sn",
+        type=float,
+        default=3.0,
+    )
+    return parser.parse_args()
 
 
-def load_sequences(df_meta, df, augment_factor=1):
-    sequences = []
-    token_augs = []
-    for i in range(augment_factor):
-        token_augs.append(tokenizer.encode(df))
-    zipped = [df_meta["object_id"], df_meta["true_target"]]
-    for static_feature in config["static_features"]:
-        if static_feature in df_meta.columns:
-            zipped += [df_meta[static_feature]]
-    for row in zip(*zipped):
-        id = row[0]
-        class_label = class_keys[int(row[1])]
-        static = list(row[2:])
-        for i in range(augment_factor):
-            if len(token_augs[i][id]) >= 2:
-                sequences.append({"x": token_augs[i][id], "class": class_label, "static": static, "object_id": id})
-    return sequences
+def main(args):
 
+    if not os.path.exists("plasticc"):
+        os.makedirs("plasticc")
 
-train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"])
-np.save("plasticc/train.npy", train_sequences)
+    for file in files + test_files:
+        if not os.path.isfile(os.path.join("plasticc", file)):
+            urllib.request.urlretrieve("https://zenodo.org/record/2539456/files/%s" % file, os.path.join("plasticc",
+                                                                                                         file))
 
-print("Num train:", len(train_sequences))
+    df_train_meta = pd.read_csv("plasticc/plasticc_train_metadata.csv.gz")
+    df_train = pd.read_csv("plasticc/plasticc_train_lightcurves.csv.gz")
+    print(np.percentile(df_train["flux"], [0.1, 99.9]))
 
-test_sequences = []
-for i, file in enumerate(test_files):
+    df_test_meta = pd.read_csv("plasticc/plasticc_test_metadata.csv.gz")
+    for file in test_files:
         df_test = pd.read_csv(os.path.join("plasticc", file))
-        test_sequences += load_sequences(df_test_meta[df_test_meta["object_id"].isin(df_test["object_id"].values)],
-                                         df_test)
-np.save("plasticc/test.npy", test_sequences)
+        print(file, np.percentile(df_test["flux"], [0.1, 99.9]))
 
-print("Num test:", len(test_sequences))
+    tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
+                            config["num_time_bins"], bands=config["bands"],
+                            transform=np.arcsinh, inverse_transform=np.sinh,
+                            min_SN=args.sn)
+
+    config["vocab_size"] = tokenizer.vocab_size
+
+    with open("plasticc/dataset_config.json", "w") as f:
+        json.dump(config, f)
+
+    def load_sequences(df_meta, df, augment_factor=1):
+        sequences = []
+        token_augs = []
+        for i in range(augment_factor):
+            token_augs.append(tokenizer.encode(df))
+        zipped = [df_meta["object_id"], df_meta["true_target"]]
+        for static_feature in config["static_features"]:
+            if static_feature in df_meta.columns:
+                zipped += [df_meta[static_feature]]
+        for row in zip(*zipped):
+            id = row[0]
+            class_label = class_keys[int(row[1])]
+            static = list(row[2:])
+            for i in range(augment_factor):
+                if len(token_augs[i][id]) >= 2:
+                    sequences.append({"x": token_augs[i][id], "class": class_label, "static": static, "object_id": id})
+        return sequences
+
+    train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"])
+    np.save("plasticc/train_%s.npy" % args.sn, train_sequences)
+
+    test_sequences = []
+    for i, file in enumerate(test_files):
+            df_test = pd.read_csv(os.path.join("plasticc", file))
+            test_sequences += load_sequences(df_test_meta[df_test_meta["object_id"].isin(df_test["object_id"].values)],
+                                             df_test)
+    np.save("plasticc/test_%s.npy" % args.sn, test_sequences)
+
+    num_train_sequences = len(train_sequences)
+    num_test_sequences = len(test_sequences)
+    num_train_tokens = len([x for xs in train_sequences for x in xs['x']])
+    num_test_tokens = len([x for xs in test_sequences for x in xs['x']])
+
+    print('Num train sequences: %s' % num_train_sequences)
+    print('Num test sequences: %s' % num_test_sequences)
+    print('Num train tokens: %s' % num_train_tokens)
+    print('Num test tokens: %s' % num_test_tokens)
+    print('Average train tokens: %s' % (num_train_tokens / num_train_sequences))
+    print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
+    print('Optimal model parameters (Chinchilla paper): %s' % int(num_train_tokens / 20))
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    main(args)
