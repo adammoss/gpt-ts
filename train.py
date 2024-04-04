@@ -282,7 +282,8 @@ def main(args):
     print('Num test tokens: %s' % num_test_tokens)
     print('Average train tokens: %s' % (num_train_tokens / num_train_sequences))
     print('Average val tokens: %s' % (num_val_tokens / num_val_sequences))
-    print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
+    if num_test_sequences > 0:
+        print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
     print('Optimal model parameters (Chinchilla paper): %s' % int(num_train_tokens / 20))
 
     training_config['num_train'] = num_train_sequences
@@ -350,7 +351,7 @@ def main(args):
     def estimate_loss(eval_iters):
         out = {}
         model.eval()
-        if len(test_sequences) > 0:
+        if num_test_sequences > 0:
             splits = ['train', 'val', 'test']
         else:
             splits = ['train', 'val']
