@@ -32,7 +32,6 @@ class_keys = {
 config = {
     "num_bins": 500,
     "num_time_bins": 500,
-    "augment_factor": 1,
     "max_delta_time": 1000,
     "min_flux": -10000,
     "max_flux": 10000,
@@ -70,6 +69,11 @@ def parse_args():
         type=float,
         default=3.0,
     )
+    parser.add_argument(
+        "--augment_factor",
+        type=int,
+        default=1,
+    )
     return parser.parse_args()
 
 
@@ -98,6 +102,8 @@ def main(args):
                             min_SN=args.sn)
 
     config["vocab_size"] = tokenizer.vocab_size
+    config["sn"] = args.sn
+    config["augment_factor"] = args.augment_factor
 
     with open("plasticc/dataset_config.json", "w") as f:
         json.dump(config, f)

@@ -112,7 +112,7 @@ def parse_args():
         choices=["pretrain_lm", "pretrain_class", "finetune_lm", "finetune_class", "finetune_last_class"],
     )
     parser.add_argument(
-        "--test_fraction",
+        "--val_fraction",
         type=float,
         default=0.1,
     )
@@ -230,7 +230,7 @@ def main(args):
         "task": args.task,
         "learning_rate": learning_rate,
         "batch_size": batch_size,
-        "test_fraction": args.test_fraction,
+        "val_fraction": args.val_fraction,
         'train_files': train_files,
         'test_files': test_files,
         'val_files': val_files,
@@ -289,7 +289,7 @@ def main(args):
             val_sequences += list(np.load(val_file, allow_pickle=True))
     else:
         # No test files supplied so create train test split
-        train_sequences, val_sequences = train_test_split(train_sequences, test_size=args.test_fraction,
+        train_sequences, val_sequences = train_test_split(train_sequences, test_size=args.val_fraction,
                                                           random_state=42)
 
     num_train_sequences = len(train_sequences)
@@ -395,15 +395,9 @@ def main(args):
                     seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
                     last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
                     last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
-                    offsets = randint(0, seqlens_in_batch)
-                    sliced_logits = output.logits[torch.arange(B), offsets]
-                    sliced_labels = Y[torch.arange(B), offsets]
                 else:
                     last_logits = output.logits[torch.arange(B), -1]
                     last_labels = Y[torch.arange(B), -1]
-                    offsets = randint(0, T)
-                    sliced_logits = output.logits[torch.arange(B), offsets]
-                    sliced_labels = Y[torch.arange(B), offsets]
                 losses[k] = output.loss.item()
                 last_losses[k] = F.cross_entropy(last_logits, last_labels)
                 correct += torch.sum(Y == torch.argmax(output.logits, dim=-1))
