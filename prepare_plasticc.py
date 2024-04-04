@@ -120,8 +120,12 @@ def main(args):
     config["sn"] = args.sn
     config["augment_factor"] = args.augment_factor
 
-    with open("plasticc/dataset_config.json", "w") as f:
-        json.dump(config, f)
+    if args.out_suffix is not None:
+        with open("plasticc/dataset_config_%s.json" % args.out_suffix, "w") as f:
+            json.dump(config, f)
+    else:
+        with open("plasticc/dataset_config.json", "w") as f:
+            json.dump(config, f)
 
     def load_sequences(df_meta, df, augment_factor=1):
         sequences = []
