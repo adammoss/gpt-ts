@@ -1,8 +1,10 @@
 import torch
 from torch.nn.utils.rnn import pad_sequence
+from torch.nn import functional as F
 from peft import LoraConfig, get_peft_model
 
 from model import GPTLanguageModel, AutoRegressiveRNN
+from utils import randint
 
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -27,7 +29,12 @@ def parse_args():
         choices=["gpt", "rnn"],
     )
     parser.add_argument(
-        "--model_weights",
+        "--base_model_weights",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--peft_model_weights",
         type=str,
         default=None,
     )
@@ -147,6 +154,16 @@ def parse_args():
         action='append',
         default=[],
     )
+    parser.add_argument(
+        "--lora_rank",
+        type=int,
+        default=8,
+    )
+    parser.add_argument(
+        "--lora_dropout",
+        type=float,
+        default=0.0,
+    )
     return parser.parse_args()
 
 
@@ -214,6 +231,9 @@ def main(args):
         "learning_rate": learning_rate,
         "batch_size": batch_size,
         "test_fraction": args.test_fraction,
+        'train_files': train_files,
+        'test_files': test_files,
+        'val_files': val_files,
     }
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -229,6 +249,9 @@ def main(args):
     model = model.to(device)
     print(model)
 
+    if args.base_model_weights is not None:
+        model.load_state_dict(torch.load(args.base_model_weights, map_location=torch.device(device)))
+
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     params = sum([np.prod(p.size()) for p in model_parameters])
     print(f'Model parameters: {params:,}')
@@ -243,14 +266,16 @@ def main(args):
         else:
             modules_to_save = ["class_head"]
         config = LoraConfig(
+            r=args.lora_rank,
             target_modules=target_modules,
             modules_to_save=modules_to_save,
+            lora_dropout=args.lora_dropout,
         )
         model = get_peft_model(model, config)
         model.print_trainable_parameters()
 
-    if args.model_weights is not None:
-        model.load_state_dict(torch.load(args.model_weights, map_location=torch.device(device)))
+    if args.peft_model_weights is not None:
+        model.load_state_dict(torch.load(args.peft_model_weights, map_location=torch.device(device)))
 
     train_sequences = []
     val_sequences = []
@@ -365,13 +390,25 @@ def main(args):
             for k in range(eval_iters):
                 X, Y, attention_mask, static = get_batch(split)
                 output = model(X, labels=Y, attention_mask=attention_mask, static=static)
+                if attention_mask is not None:
+                    B, T, C = output.logits.shape
+                    seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+                    last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
+                    last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
+                    offsets = randint(0, seqlens_in_batch)
+                    sliced_logits = output.logits[torch.arange(B), offsets]
+                    sliced_labels = Y[torch.arange(B), offsets]
+                else:
+                    last_logits = output.logits[torch.arange(B), -1]
+                    last_labels = Y[torch.arange(B), -1]
+                    offsets = randint(0, T)
+                    sliced_logits = output.logits[torch.arange(B), offsets]
+                    sliced_labels = Y[torch.arange(B), offsets]
                 losses[k] = output.loss.item()
-                if output.last_loss is not None:
-                    last_losses[k] = output.last_loss.item()
+                last_losses[k] = F.cross_entropy(last_logits, last_labels)
                 correct += torch.sum(Y == torch.argmax(output.logits, dim=-1))
                 total += torch.sum(attention_mask)
-                if output.last_logits is not None and output.last_labels is not None:
-                    last_correct += torch.sum(output.last_labels == torch.argmax(output.last_logits, dim=-1))
+                last_correct += torch.sum(last_labels == torch.argmax(last_logits, dim=-1))
                 last_total += X.shape[0]
             out['%s/loss' % split] = losses.mean()
             out['%s/last_loss' % split] = last_losses.mean()
@@ -418,10 +455,22 @@ def main(args):
 
         # evaluate the loss
         output = model(X, labels=Y, attention_mask=attention_mask, static=static)
-        optimizer.zero_grad(set_to_none=True)
 
-        if args.task == "finetune_last_class" and output.last_loss is not None:
-            loss = (1 - args.last_weight) * output.loss + args.last_weight * output.last_loss
+        if attention_mask is not None:
+            B, T, C = output.logits.shape
+            seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+            last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
+            last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
+            offsets = randint(0, seqlens_in_batch)
+            sliced_logits = output.logits[torch.arange(B), offsets]
+            sliced_labels = Y[torch.arange(B), offsets]
+        else:
+            last_logits = output.logits[torch.arange(B), -1]
+            last_labels = Y[torch.arange(B), -1]
+
+        optimizer.zero_grad(set_to_none=True)
+        if args.task == "finetune_last_class":
+            loss = F.cross_entropy(sliced_logits, sliced_labels)
         else:
             loss = output.loss
         loss.backward()
