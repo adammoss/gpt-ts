@@ -7,6 +7,8 @@ import argparse
 
 from tokenizer import LCTokenizer
 
+from sklearn.model_selection import train_test_split
+
 class_keys = {
     6: 0,
     15: 1,
@@ -78,6 +80,16 @@ def parse_args():
         type=str,
         default=None,
     )
+    parser.add_argument(
+        "--test_fraction",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "--random_state",
+        type=int,
+        default=42,
+    )
     return parser.parse_args()
 
 
@@ -129,20 +141,36 @@ def main(args):
                     sequences.append({"x": token_augs[i][id], "class": class_label, "static": static, "object_id": id})
         return sequences
 
-    train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"])
+    if args.test_fraction > 0:
+
+        # Make a new representative training split
+
+        df_train_split_meta, df_test_split_meta = train_test_split(df_train_meta, test_size=args.test_fraction,
+                                                                   random_state=args.random_state)
+        train_sequences = load_sequences(df_train_split_meta, df_train, augment_factor=config["augment_factor"])
+        test_sequences = load_sequences(df_test_split_meta, df_train)
+        for i, file in enumerate(test_files):
+            df_test = pd.read_csv(os.path.join("plasticc", file))
+            df_train_split_meta, df_test_split_meta = train_test_split(
+                df_test_meta[df_test_meta['object_id'].isin(df_test['object_id'].values)], test_size=args.test_fraction,
+                random_state=args.random_state)
+            train_sequences += load_sequences(df_train_split_meta, df_test, augment_factor=config["augment_factor"])
+            test_sequences += load_sequences(df_test_split_meta, df_test)
+
+    else:
+
+        train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"])
+        test_sequences = []
+        for i, file in enumerate(test_files):
+            df_test = pd.read_csv(os.path.join("plasticc", file))
+            test_sequences += load_sequences(df_test_meta[df_test_meta["object_id"].isin(df_test["object_id"].values)],
+                                             df_test)
+
     if args.out_suffix is not None:
         np.save("plasticc/train_%s.npy" % args.out_suffix, train_sequences)
-    else:
-        np.save("plasticc/train.npy", train_sequences)
-
-    test_sequences = []
-    for i, file in enumerate(test_files):
-        df_test = pd.read_csv(os.path.join("plasticc", file))
-        test_sequences += load_sequences(df_test_meta[df_test_meta["object_id"].isin(df_test["object_id"].values)],
-                                         df_test)
-    if args.out_suffix is not None:
         np.save("plasticc/test_%s.npy" % args.out_suffix, test_sequences)
     else:
+        np.save("plasticc/train.npy", train_sequences)
         np.save("plasticc/test.npy", test_sequences)
 
     num_train_sequences = len(train_sequences)

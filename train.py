@@ -164,6 +164,11 @@ def parse_args():
         type=float,
         default=0.0,
     )
+    parser.add_argument(
+        "--random_state",
+        type=int,
+        default=42,
+    )
     return parser.parse_args()
 
 
@@ -290,7 +295,7 @@ def main(args):
     else:
         # No test files supplied so create train test split
         train_sequences, val_sequences = train_test_split(train_sequences, test_size=args.val_fraction,
-                                                          random_state=42)
+                                                          random_state=args.random_state)
 
     num_train_sequences = len(train_sequences)
     num_val_sequences = len(val_sequences)
