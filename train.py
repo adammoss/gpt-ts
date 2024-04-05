@@ -216,6 +216,8 @@ def main(args):
         "n_labels": n_labels,
         "n_embd": n_embd,
         "n_layer": n_layer,
+        "vocab_size": vocab_size,
+        "use_lm_head": use_lm_head,
     }
     if model_type == "rnn":
         model_config["n_hidden"] = n_hidden
@@ -223,13 +225,6 @@ def main(args):
         model_config["n_positions"] = n_positions
         model_config["n_head"] = n_head
         model_config["position_embedding"] = position_embedding
-
-    if args.output_dir is not None:
-        with open(os.path.join(args.output_dir, "model_config.json"), "w") as f:
-            json.dump(model_config, f)
-    else:
-        with open(os.path.join(dataset, "model_config.json"), "w") as f:
-            json.dump(model_config, f)
 
     training_config = {
         "task": args.task,
@@ -284,11 +279,18 @@ def main(args):
         )
         model = get_peft_model(model, config)
         model.print_trainable_parameters()
-        training_config["lora_rank"] = args.lora_rank
-        training_config["lora_dropout"] = args.lora_dropout
+        model_config["lora_rank"] = args.lora_rank
+        model_config["lora_dropout"] = args.lora_dropout
 
     if args.peft_model_weights is not None:
         model.load_state_dict(torch.load(args.peft_model_weights, map_location=torch.device(device)))
+
+    if args.output_dir is not None:
+        with open(os.path.join(args.output_dir, "model_config.json"), "w") as f:
+            json.dump(model_config, f)
+    else:
+        with open(os.path.join(dataset, "model_config.json"), "w") as f:
+            json.dump(model_config, f)
 
     train_sequences = []
     val_sequences = []

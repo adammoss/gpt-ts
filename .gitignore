@@ -131,3 +131,4 @@ dmypy.json
 plasticc/*
 wandb/*
 test/*
+test[0-9]/*

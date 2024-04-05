@@ -114,7 +114,7 @@ class Block(nn.Module):
 class GPTLanguageModel(nn.Module):
 
     def __init__(self, vocab_size, n_head, n_embd, n_positions, n_layer, dropout=0, n_static=0, n_labels=0,
-                 position_embedding='absolute', use_lm_head=True):
+                 position_embedding='absolute', use_lm_head=True, **kwargs):
         super().__init__()
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
@@ -175,7 +175,7 @@ class GPTLanguageModel(nn.Module):
 
 class AutoRegressiveRNN(nn.Module):
     def __init__(self, vocab_size, n_embd, n_hidden, n_labels=0,
-                 num_layers=1, dropout=0, n_static=0, use_lm_head=True):
+                 num_layers=1, dropout=0, n_static=0, use_lm_head=True, **kwargs):
         """
         Initialize the autoregressive RNN model with an embedding layer.
 
