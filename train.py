@@ -2,6 +2,7 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.nn import functional as F
 from peft import LoraConfig, get_peft_model
+import transformers
 
 from model import GPTLanguageModel, AutoRegressiveRNN
 from utils import randint
@@ -26,7 +27,7 @@ def parse_args():
         "--model",
         type=str,
         default="gpt",
-        choices=["gpt", "rnn"],
+        choices=["gpt", "rnn", "hf_gpt2"],
     )
     parser.add_argument(
         "--base_model_weights",
@@ -250,6 +251,12 @@ def main(args):
     elif model_type == 'rnn':
         model = AutoRegressiveRNN(vocab_size, n_embd, n_hidden, n_static=n_static, n_labels=n_labels,
                                   num_layers=n_layer, dropout=dropout, use_lm_head=use_lm_head)
+    elif model_type == 'hf_gpt2':
+        from transformers import GPT2Config, GPT2LMHeadModel
+        configuration = GPT2Config(vocab_size=vocab_size, n_layer=n_layer,
+                                   n_embd=n_embd, n_head=n_head,
+                                   n_positions=n_positions)
+        model = GPT2LMHeadModel(configuration)
 
     model = model.to(device)
     print(model)
