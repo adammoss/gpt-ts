@@ -30,6 +30,27 @@ class_keys = {
     994: 17,
 }
 
+class_names = {
+    0: "\mu",
+    1: "TDE",
+    2: "EBE",
+    3: "SNII",
+    4: "SNIax",
+    5: "<IRA",
+    6: "SNIbc",
+    7: "KN",
+    8: "M-dwarf",
+    9: "SNIa-91bg",
+    10: "AGN",
+    11: "SNIa",
+    12: "RR Lyrae",
+    13: "SLSN-I",
+    14: "99a",
+    15: "99b",
+    16: "99c",
+    17: "99d",
+}
+
 config = {
     "num_bins": 500,
     "num_time_bins": 500,

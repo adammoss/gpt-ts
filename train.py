@@ -169,6 +169,11 @@ def parse_args():
         type=int,
         default=42,
     )
+    parser.add_argument(
+        "--use_last",
+        default=False,
+        action="store_true",
+    )
     return parser.parse_args()
 
 
@@ -487,7 +492,10 @@ def main(args):
 
         optimizer.zero_grad(set_to_none=True)
         if args.task == "finetune_last_class":
-            loss = F.cross_entropy(sliced_logits, sliced_labels)
+            if args.use_last:
+                loss = F.cross_entropy(last_logits, last_labels)
+            else:
+                loss = F.cross_entropy(sliced_logits, sliced_labels)
         else:
             loss = output.loss
         loss.backward()

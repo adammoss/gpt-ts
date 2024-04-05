@@ -7,6 +7,14 @@ import numpy as np
 import json
 import argparse
 
+from sklearn.metrics import (
+    auc,
+    average_precision_score,
+    confusion_matrix,
+    precision_recall_curve,
+    roc_curve,
+)
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -39,6 +47,7 @@ def load_model(model_config, model_weights=None, device=None):
         model = AutoRegressiveRNN(**config)
     else:
         raise ValueError("Invalid model type")
+    print(model)
     if "lora_rank" in config:
         target_modules = []
         for n, m in model.named_modules():
@@ -66,20 +75,22 @@ def main(args):
     # Load the model
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model = load_model(args.model_config, args.model_weights, device=device)
-    print(model)
     test_files = list(set(args.test_file))
     test_sequences = []
     for test_file in test_files:
         test_sequences += list(np.load(test_file, allow_pickle=True))
     model.eval()
-    for sequence in test_sequences[0:10]:
-        print(sequence)
+    y_true, y_pred = [], []
+    for sequence in test_sequences[0:1000]:
         x = torch.tensor(sequence['x'], dtype=torch.long).unsqueeze(0)
         x = x.to(device)
         static = torch.tensor(sequence['static'], dtype=torch.float32).unsqueeze(0)
         static = static.to(device)
         output = model(x, static=static)
-        print(torch.argmax(output.logits, dim=-1))
+        y_true.append(sequence['class'])
+        y_pred.append(torch.argmax(output.logits, dim=-1).squeeze(0)[-1].cpu().numpy())
+    cm = confusion_matrix(y_true, y_pred)
+    print(cm)
 
 
 if __name__ == "__main__":
