@@ -106,7 +106,7 @@ def main(args):
         y_pred.append(torch.argmax(output.logits, dim=-1).squeeze(0)[-1].cpu().numpy())
     cm = confusion_matrix(y_true, y_pred)
     if args.output_dir is not None:
-        np.save(os.path.join(args.output_dir, 'cm.npy', cm))
+        np.save(os.path.join(args.output_dir, 'cm.npy'), cm)
 
 
 if __name__ == "__main__":

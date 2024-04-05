@@ -498,7 +498,10 @@ def main(args):
         optimizer.zero_grad(set_to_none=True)
         if args.task == "finetune_last_class":
             if args.last_label_only:
-                loss = F.cross_entropy(last_logits, last_labels, label_smoothing=args.label_smoothing)
+                if np.random.rand() < 0.5:
+                    loss = F.cross_entropy(last_logits, last_labels, label_smoothing=args.label_smoothing)
+                else:
+                    loss = F.cross_entropy(sliced_logits, sliced_labels, label_smoothing=args.label_smoothing)
             else:
                 loss = F.cross_entropy(sliced_logits, sliced_labels, label_smoothing=args.label_smoothing)
         else:
