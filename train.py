@@ -474,7 +474,7 @@ def main(args):
             seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
             last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
             last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
-            offsets = randint(0, seqlens_in_batch)
+            offsets = randint(0, seqlens_in_batch).to(device)
             sliced_logits = output.logits[torch.arange(B), offsets]
             sliced_labels = Y[torch.arange(B), offsets]
         else:
