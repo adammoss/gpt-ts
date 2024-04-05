@@ -401,7 +401,10 @@ def main(args):
             last_total = 0
             for k in range(eval_iters):
                 X, Y, attention_mask, static = get_batch(split)
-                output = model(X, labels=Y, attention_mask=attention_mask, static=static)
+                if 'hf' in model_type:
+                    output = model(X, labels=Y, attention_mask=attention_mask)
+                else:
+                    output = model(X, labels=Y, attention_mask=attention_mask, static=static)
                 if attention_mask is not None:
                     B, T, C = output.logits.shape
                     seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
@@ -423,7 +426,9 @@ def main(args):
         model.train()
         return out
 
-    metrics = estimate_loss(eval_iters)
+    if device == 'cpu':
+        metrics = estimate_loss(1)
+        print(metrics)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
@@ -460,7 +465,10 @@ def main(args):
         X, Y, attention_mask, static = get_batch('train', batch_size=batch_size)
 
         # evaluate the loss
-        output = model(X, labels=Y, attention_mask=attention_mask, static=static)
+        if 'hf' in model_type:
+            output = model(X, labels=Y, attention_mask=attention_mask)
+        else:
+            output = model(X, labels=Y, attention_mask=attention_mask, static=static)
 
         if attention_mask is not None:
             B, T, C = output.logits.shape
