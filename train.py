@@ -2,7 +2,6 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.nn import functional as F
 from peft import LoraConfig, get_peft_model
-import transformers
 
 from model import GPTLanguageModel, AutoRegressiveRNN
 from utils import randint
