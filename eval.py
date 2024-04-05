@@ -39,7 +39,7 @@ def load_model(model_config, model_weights=None, device=None):
         model = AutoRegressiveRNN(**config)
     else:
         raise ValueError("Invalid model type")
-    if "lora_rank" in model_config:
+    if "lora_rank" in config:
         target_modules = []
         for n, m in model.named_modules():
             if ('query' in n or 'value' in n) and type(m) == torch.nn.modules.linear.Linear:
