@@ -170,9 +170,14 @@ def parse_args():
         default=42,
     )
     parser.add_argument(
-        "--use_last",
+        "--last_label_only",
         default=False,
         action="store_true",
+    )
+    parser.add_argument(
+        "--label_smoothing",
+        type=float,
+        default=0.0,
     )
     return parser.parse_args()
 
@@ -492,10 +497,10 @@ def main(args):
 
         optimizer.zero_grad(set_to_none=True)
         if args.task == "finetune_last_class":
-            if args.use_last:
-                loss = F.cross_entropy(last_logits, last_labels)
+            if args.last_label_only:
+                loss = F.cross_entropy(last_logits, last_labels, label_smoothing=args.label_smoothing)
             else:
-                loss = F.cross_entropy(sliced_logits, sliced_labels)
+                loss = F.cross_entropy(sliced_logits, sliced_labels, label_smoothing=args.label_smoothing)
         else:
             loss = output.loss
         loss.backward()

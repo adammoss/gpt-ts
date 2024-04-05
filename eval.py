@@ -3,9 +3,11 @@ from peft import LoraConfig, get_peft_model
 
 from model import GPTLanguageModel, AutoRegressiveRNN
 
+import os
 import numpy as np
 import json
 import argparse
+import random
 
 from sklearn.metrics import (
     auc,
@@ -33,6 +35,16 @@ def parse_args():
         type=str,
         action='append',
         default=[],
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--max_sequences",
+        type=int,
+        default=None,
     )
     return parser.parse_args()
 
@@ -81,7 +93,10 @@ def main(args):
         test_sequences += list(np.load(test_file, allow_pickle=True))
     model.eval()
     y_true, y_pred = [], []
-    for sequence in test_sequences[0:1000]:
+    random.shuffle(test_sequences)
+    if args.max_sequences is not None:
+        test_sequences = test_sequences[:args.max_sequences]
+    for sequence in test_sequences:
         x = torch.tensor(sequence['x'], dtype=torch.long).unsqueeze(0)
         x = x.to(device)
         static = torch.tensor(sequence['static'], dtype=torch.float32).unsqueeze(0)
@@ -90,7 +105,8 @@ def main(args):
         y_true.append(sequence['class'])
         y_pred.append(torch.argmax(output.logits, dim=-1).squeeze(0)[-1].cpu().numpy())
     cm = confusion_matrix(y_true, y_pred)
-    print(cm)
+    if args.output_dir is not None:
+        np.save(os.path.join(args.output_dir, 'cm.npy', cm))
 
 
 if __name__ == "__main__":
