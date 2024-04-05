@@ -284,6 +284,8 @@ def main(args):
         )
         model = get_peft_model(model, config)
         model.print_trainable_parameters()
+        training_config["lora_rank"] = args.lora_rank
+        training_config["lora_dropout"] = args.lora_dropout
 
     if args.peft_model_weights is not None:
         model.load_state_dict(torch.load(args.peft_model_weights, map_location=torch.device(device)))
