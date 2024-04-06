@@ -8,6 +8,7 @@ import numpy as np
 import json
 import argparse
 import random
+from tqdm import tqdm
 
 from sklearn.metrics import (
     auc,
@@ -95,8 +96,11 @@ def main(args):
     y_true, y_pred = [], []
     random.shuffle(test_sequences)
     if args.max_sequences is not None:
-        test_sequences = test_sequences[:args.max_sequences]
-    for sequence in test_sequences:
+        max_sequences = args.max_sequences
+    else:
+        max_sequences = len(test_sequences)
+    for i in tqdm(range(max_sequences)):
+        sequence = test_sequences[i]
         x = torch.tensor(sequence['x'], dtype=torch.long).unsqueeze(0)
         x = x.to(device)
         static = torch.tensor(sequence['static'], dtype=torch.float32).unsqueeze(0)
@@ -104,8 +108,10 @@ def main(args):
         output = model(x, static=static)
         y_true.append(sequence['class'])
         y_pred.append(torch.argmax(output.logits, dim=-1).squeeze(0)[-1].cpu().numpy())
+        sequence['logits'] = output.logits.cpu().detach().numpy()
     cm = confusion_matrix(y_true, y_pred)
     if args.output_dir is not None:
+        np.save(os.path.join(args.output_dir, 'eval.npy'), test_sequences[:max_sequences])
         np.save(os.path.join(args.output_dir, 'cm.npy'), cm)
 
 

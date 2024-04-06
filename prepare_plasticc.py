@@ -36,7 +36,7 @@ class_names = {
     2: "EBE",
     3: "SNII",
     4: "SNIax",
-    5: "<IRA",
+    5: "MIRA",
     6: "SNIbc",
     7: "KN",
     8: "M-dwarf",
@@ -60,6 +60,7 @@ config = {
     "static_features": ["hostgal_photoz", "hostgal_photoz_err"],
     "num_labels": 18,
     "class_keys": class_keys,
+    "class_names": class_names,
     "bands": [0, 1, 2, 3, 4, 5],
 }
 

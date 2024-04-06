@@ -109,7 +109,7 @@ def parse_args():
         "--task",
         type=str,
         default="pretrain_lm",
-        choices=["pretrain_lm", "pretrain_class", "finetune_lm", "finetune_class", "finetune_last_class"],
+        choices=["pretrain_lm", "pretrain_class", "finetune_lm", "finetune_class"],
     )
     parser.add_argument(
         "--val_fraction",
@@ -272,7 +272,7 @@ def main(args):
     params = sum([np.prod(p.size()) for p in model_parameters])
     print(f'Model parameters: {params:,}')
 
-    if args.task in ["finetune_lm", "finetune_class", "finetune_last_class"]:
+    if args.task in ["finetune_lm", "finetune_class"]:
         target_modules = []
         for n, m in model.named_modules():
             if ('query' in n or 'value' in n) and type(m) == torch.nn.modules.linear.Linear:
@@ -324,6 +324,14 @@ def main(args):
     num_val_tokens = len([x for xs in val_sequences for x in xs['x']])
     num_test_tokens = len([x for xs in test_sequences for x in xs['x']])
 
+    train_classes = {}
+    for train_sequence in train_sequences:
+        if train_sequence['class'] in train_classes:
+            train_classes[train_sequence['class']]['count'] += 1
+            train_classes[train_sequence['class']]['length'].append(len(train_sequence['x']))
+        else:
+            train_classes[train_sequence['class']] = {'count': 1, 'length': [len(train_sequence['x'])]}
+
     print('Num train sequences: %s' % num_train_sequences)
     print('Num val sequences: %s' % num_val_sequences)
     print('Num test sequences: %s' % num_test_sequences)
@@ -334,7 +342,14 @@ def main(args):
     print('Average val tokens: %s' % (num_val_tokens / num_val_sequences))
     if num_test_sequences > 0:
         print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
-    print('Optimal model parameters (Chinchilla paper): %s' % int(num_train_tokens / 20))
+    if model_type == 'gpt':
+        print('Optimal model parameters (Chinchilla paper): %s' % int(num_train_tokens / 20))
+    print('\nTraining class counts:')
+    for key, value in dataset_config['class_names'].items():
+        if int(key) in train_classes:
+            print(value, train_classes[int(key)]['count'], np.mean(train_classes[int(key)]['length']))
+        else:
+            print(value)
 
     training_config['num_train'] = num_train_sequences
     training_config['num_val'] = num_val_sequences
@@ -496,7 +511,7 @@ def main(args):
             last_labels = Y[torch.arange(B), -1]
 
         optimizer.zero_grad(set_to_none=True)
-        if args.task == "finetune_last_class":
+        if "class" in args.task:
             if args.last_label_only:
                 if np.random.rand() < 0.5:
                     loss = F.cross_entropy(last_logits, last_labels, label_smoothing=args.label_smoothing)

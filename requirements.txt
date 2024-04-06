@@ -4,3 +4,4 @@ peft
 wandb
 pandas 
 scikit-learn
+tqdm
