@@ -112,6 +112,16 @@ def parse_args():
         type=int,
         default=42,
     )
+    parser.add_argument(
+        "--num_time_bins",
+        type=int,
+        default=500,
+    )
+    parser.add_argument(
+        "--num_bins",
+        type=int,
+        default=500,
+    )
     return parser.parse_args()
 
 
@@ -133,14 +143,17 @@ def main(args):
         df_test = pd.read_csv(os.path.join("plasticc", file))
         print(file, np.percentile(df_test["flux"], [0.1, 99.9]))
 
+    config["sn"] = args.sn
+    config["augment_factor"] = args.augment_factor
+    config["num_time_bins"] = args.num_time_bins
+    config["num_bins"] = args.num_bins
+
     tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
                             config["num_time_bins"], bands=config["bands"],
                             transform=np.arcsinh, inverse_transform=np.sinh,
                             min_SN=args.sn)
 
     config["vocab_size"] = tokenizer.vocab_size
-    config["sn"] = args.sn
-    config["augment_factor"] = args.augment_factor
 
     if args.out_suffix is not None:
         with open("plasticc/dataset_config_%s.json" % args.out_suffix, "w") as f:
