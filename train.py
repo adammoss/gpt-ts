@@ -23,6 +23,11 @@ def parse_args():
         choices=["plasticc"],
     )
     parser.add_argument(
+        "--dataset_config",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
         "--model",
         type=str,
         default="gpt",
@@ -209,8 +214,12 @@ def main(args):
     if wandb_log and args.wandb_api_key is not None:
         wandb.login(key=args.wandb_api_key)
 
-    with open(os.path.join(dataset, "dataset_config.json")) as f:
-        dataset_config = json.load(f)
+    if args.dataset_config is not None:
+        with open(args.dataset_config) as f:
+            dataset_config = json.load(f)
+    else:
+        with open(os.path.join(dataset, "dataset_config.json")) as f:
+            dataset_config = json.load(f)
 
     vocab_size = dataset_config["vocab_size"]
     n_static = len(dataset_config["static_features"])
