@@ -10,7 +10,7 @@ class LCTokenizer:
                  band_column='passband', time_column='mjd',
                  parameter_column='flux',
                  parameter_error_column='flux_err',
-                 transform=None, inverse_transform=None, min_SN=0):
+                 transform=None, inverse_transform=None, min_sn=0, window_size=10):
         if transform is None:
             self.transform = lambda x: x
         else:
@@ -42,7 +42,8 @@ class LCTokenizer:
         self.time_column = time_column
         self.parameter_column = parameter_column
         self.parameter_error_column = parameter_error_column
-        self.min_SN = min_SN
+        self.min_sn = min_sn
+        self.window_size = window_size
 
     def flux_token(self, flux):
         flux = self.transform(flux)
@@ -63,37 +64,58 @@ class LCTokenizer:
             return int((delta_time - self.min_delta_time) // self.dt)
 
     def encode(self, df, augment=False):
-        tokens_dict = {}
         last_object_id = None
+        data = {}
+        object_data = []
         # Zip is much faster than .iterrows
         # https://stackoverflow.com/questions/7837722/what-is-the-most-efficient-way-to-loop-through-dataframes-with-pandas
         for row in zip(df['object_id'], df[self.time_column], df[self.band_column], df[self.parameter_column],
                        df[self.parameter_error_column]):
             if row[0] != last_object_id:
                 if last_object_id is not None:
-                    tokens_dict[last_object_id] = tokens
-                tokens = []
-                last_time = row[1]
+                    object_data = np.array(object_data)
+                    threshold = abs(object_data[:, 3]) / object_data[:, 4] > self.min_sn
+                    threshold = threshold.astype(int)
+                    window = np.ones(min(self.window_size, len(object_data)))
+                    threshold = np.convolve(threshold, window, mode='same')
+                    object_data = np.hstack((object_data, np.expand_dims(threshold, -1)))
+                    data[last_object_id] = {'object_data': object_data, 'first_observed': first_observed}
+                object_data = []
                 last_object_id = row[0]
-            if self.min_SN is not None and abs(row[3]) / row[4] < self.min_SN:
-                continue
-            time_token = self.time_token(row[1] - last_time)
-            last_time = row[1]
-            if time_token > 0:
-                if self.pad_token:
-                    time_token += 1
-                tokens.append(time_token)
-            if augment:
-                flux_token = self.flux_token(row[3] + row[4] * np.random.normal())
-            else:
-                flux_token = self.flux_token(row[3])
-            if self.bands is not None:
-                band_index = self.bands.index(row[2])
-                flux_token += band_index * self.num_bins
-                if self.pad_token:
-                    flux_token += 1
-            tokens.append(self.num_time_bins + flux_token)
-        tokens_dict[last_object_id] = tokens
+                first_observed = row[1]
+            object_data.append(row)
+        object_data = np.array(object_data)
+        threshold = abs(object_data[:, 3]) / object_data[:, 4] > self.min_sn
+        threshold = threshold.astype(int)
+        window = np.ones(min(self.window_size, len(object_data)))
+        threshold = np.convolve(threshold, window, mode='same')
+        object_data = np.hstack((object_data, np.expand_dims(threshold, -1)))
+        data[last_object_id] = {'object_data': object_data, 'first_observed': first_observed}
+        tokens_dict = {}
+        for object_id, value in data.items():
+            object_data = value['object_data']
+            last_time = value['first_observed']
+            tokens = []
+            for row in object_data:
+                if row[5] == 0:
+                    continue
+                time_token = self.time_token(row[1] - last_time)
+                last_time = row[1]
+                if time_token > 0:
+                    if self.pad_token:
+                        time_token += 1
+                    tokens.append(time_token)
+                if augment:
+                    flux_token = self.flux_token(row[3] + row[4] * np.random.normal())
+                else:
+                    flux_token = self.flux_token(row[3])
+                if self.bands is not None:
+                    band_index = self.bands.index(row[2])
+                    flux_token += band_index * self.num_bins
+                    if self.pad_token:
+                        flux_token += 1
+                tokens.append(self.num_time_bins + flux_token)
+            tokens_dict[object_id] = tokens
         if len(tokens_dict) == 1 and last_object_id is not None:
             return tokens_dict[last_object_id]
         else:

@@ -51,6 +51,24 @@ class_names = {
     17: "99d",
 }
 
+pb_wavelengths = {
+    0: 3685.0,
+    1: 4802.0,
+    2: 6231.0,
+    3: 7542.0,
+    4: 8690.0,
+    5: 9736.0,
+}
+
+pb_colors = {
+    0: "#984ea3",  # Purple: https://www.color-hex.com/color/984ea3
+    1: "#4daf4a",  # Green: https://www.color-hex.com/color/4daf4a
+    2: "#e41a1c",  # Red: https://www.color-hex.com/color/e41a1c
+    3: "#377eb8",  # Blue: https://www.color-hex.com/color/377eb8
+    4: "#ff7f00",  # Orange: https://www.color-hex.com/color/ff7f00
+    5: "#e3c530",  # Yellow: https://www.color-hex.com/color/e3c530
+}
+
 config = {
     "num_bins": 500,
     "num_time_bins": 500,
@@ -62,6 +80,8 @@ config = {
     "class_keys": class_keys,
     "class_names": class_names,
     "bands": [0, 1, 2, 3, 4, 5],
+    "pb_wavelengths": pb_wavelengths,
+    "pb_colors": pb_colors,
 }
 
 files = [
@@ -131,8 +151,8 @@ def main(args):
 
     for file in files + test_files:
         if not os.path.isfile(os.path.join("plasticc", file)):
-            urllib.request.urlretrieve("https://zenodo.org/record/2539456/files/%s" % file, os.path.join("plasticc",
-                                                                                                         file))
+            url = "https://zenodo.org/record/2539456/files/%s" % file
+            urllib.request.urlretrieve(url, os.path.join("plasticc", file))
 
     df_train_meta = pd.read_csv("plasticc/plasticc_train_metadata.csv.gz")
     df_train = pd.read_csv("plasticc/plasticc_train_lightcurves.csv.gz")

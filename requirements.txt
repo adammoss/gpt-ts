@@ -5,3 +5,5 @@ wandb
 pandas 
 scikit-learn
 tqdm
+astropy
+scipy

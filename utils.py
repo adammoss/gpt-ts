@@ -1,5 +1,6 @@
 import torch
 from torch.nn import functional as F
+from matplotlib.pyplot as plt
 
 
 def generate(model, n_positions, idx, max_new_tokens, static=None, temperature=1.0, top_k=None):
@@ -31,4 +32,7 @@ def randint(low, high=None, size=None, device=None):
         low = 0
     if size is None:
         size = low.shape if isinstance(low, torch.Tensor) else high.shape
-    return torch.randint(2**63 - 1, size=size, device=device) % (high - low) + low
+    return torch.randint(2 ** 63 - 1, size=size, device=device) % (high - low) + low
+
+
+
