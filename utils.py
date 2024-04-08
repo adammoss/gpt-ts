@@ -1,6 +1,5 @@
 import torch
 from torch.nn import functional as F
-from matplotlib.pyplot as plt
 
 
 def generate(model, n_positions, idx, max_new_tokens, static=None, temperature=1.0, top_k=None):
