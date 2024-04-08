@@ -142,6 +142,11 @@ def parse_args():
         type=int,
         default=500,
     )
+    parser.add_argument(
+        "--window_size",
+        type=int,
+        default=10,
+    )
     return parser.parse_args()
 
 
@@ -167,11 +172,12 @@ def main(args):
     config["augment_factor"] = args.augment_factor
     config["num_time_bins"] = args.num_time_bins
     config["num_bins"] = args.num_bins
+    config["window_size"] = args.window_size
 
     tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
                             config["num_time_bins"], bands=config["bands"],
                             transform=np.arcsinh, inverse_transform=np.sinh,
-                            min_SN=args.sn)
+                            min_sn=args.sn, window_size=args.window_size)
 
     config["vocab_size"] = tokenizer.vocab_size
 
