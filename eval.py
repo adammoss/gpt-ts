@@ -1,7 +1,8 @@
 import torch
 from peft import LoraConfig, get_peft_model
 
-from model import GPTLanguageModel, AutoRegressiveRNN
+from models.gpt import GPTModel
+from models.rnn import AutoRegressiveRNN
 
 import os
 import numpy as np
@@ -55,7 +56,7 @@ def load_model(model_config, model_weights=None, device=None):
         config = json.load(f)
     model_type = config["model_type"]
     if model_type == "gpt":
-        model = GPTLanguageModel(**config)
+        model = GPTModel(**config)
     elif model_type == "rnn":
         model = AutoRegressiveRNN(**config)
     else:

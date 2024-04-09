@@ -5,9 +5,22 @@ import numpy as np
 from functools import partial
 
 
-def fit_2d_gp(df, pb_wavelengths, subtract_background=True, band_column="passband",
-              parameter_column="flux",  parameter_error_column="flux_err", guess_length_scale=20.0,
-              sample_interval=1, overwrite=True):
+def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', band_column="passband",
+              parameter_column="flux", parameter_error_column="flux_err", guess_length_scale=20.0,
+              sample_interval=1, replace=True):
+    """
+    :param df: pandas DataFrame containing the object data
+    :param pb_wavelengths: dictionary of passband wavelengths for each passband value
+    :param subtract_background: boolean indicating whether to subtract the estimated background flux from the object flux
+    :param time_column: name of the column containing the time values
+    :param band_column: name of the column containing the passband values
+    :param parameter_column: name of the column containing the object flux values
+    :param parameter_error_column: name of the column containing the object flux error values
+    :param guess_length_scale: initial length scale guess for the Matern32Kernel kernel
+    :param sample_interval: interval at which to sample the flux values for each passband
+    :param replace: boolean indicating whether to replace the original flux values with the resampled flux values
+    :return: a tuple containing the modified DataFrame and a tuple of sampled times, flux values, flux errors, and mask information
+    """
     obj_data = df.copy()
     bands = np.unique(obj_data[band_column])
 
@@ -26,9 +39,9 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, band_column="passban
 
             obj_data.loc[mask, parameter_column] -= ref_flux
 
-    obj_times = obj_data.mjd.astype(float)
-    obj_flux = obj_data.flux.astype(float)
-    obj_flux_error = obj_data.flux_err.astype(float)
+    obj_times = obj_data[time_column].astype(float)
+    obj_flux = obj_data[parameter_column].astype(float)
+    obj_flux_error = obj_data[parameter_error_column].astype(float)
     obj_wavelengths = obj_data[band_column].map(pb_wavelengths)
     obj_ref_flux = obj_data[band_column].map(ref_flux_bands)
 
@@ -92,16 +105,21 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, band_column="passban
     obj_data.loc[failures, 'resampled_%s' % parameter_column] = obj_data.loc[failures, parameter_column]
     obj_data.loc[failures, 'resampled_%s' % parameter_error_column] = obj_data.loc[failures, parameter_error_column]
 
-    if overwrite:
+    if replace:
         obj_data.loc[:, parameter_column] = obj_data.loc[:, 'resampled_%s' % parameter_column]
         obj_data.loc[:, parameter_error_column] = obj_data.loc[:, 'resampled_%s' % parameter_error_column]
         obj_data = obj_data.drop(columns=['resampled_%s' % parameter_column, 'resampled_%s' % parameter_error_column])
 
     sampled_times = np.arange(min(obj_times), max(obj_times), sample_interval)
     sampled_flux = []
-    for band in bands:
+    sampled_mask = np.zeros((len(bands), len(sampled_times)), dtype=np.int32)
+    for i, band in enumerate(bands):
+        mask = obj_data[band_column] == band
+        band_times = obj_data[mask][time_column].values
+        sampled_mask[i, :] = (np.min(abs(band_times.reshape((-1, 1)) - sampled_times.reshape((1, -1))), axis=0) <
+                              sample_interval)
         pred_x_data = np.vstack([sampled_times, np.ones(len(sampled_times)) * pb_wavelengths[band]]).T
         sampled_flux.append(gp(pred_x_data, return_var=True))
     sampled_flux = np.array(sampled_flux)
 
-    return obj_data, (sampled_times, sampled_flux)
+    return obj_data, (sampled_times, sampled_flux[:, 0, :], sampled_flux[:, 1, :], sampled_mask)

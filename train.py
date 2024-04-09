@@ -3,7 +3,8 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.nn import functional as F
 from peft import LoraConfig, get_peft_model
 
-from model import GPTLanguageModel, AutoRegressiveRNN
+from models.gpt import GPTModel
+from models.rnn import AutoRegressiveRNN
 from utils import randint
 
 from sklearn.model_selection import train_test_split
@@ -258,9 +259,9 @@ def main(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if model_type == 'gpt':
-        model = GPTLanguageModel(vocab_size, n_head, n_embd, n_positions, n_layer, dropout=dropout,
-                                 n_static=n_static, n_labels=n_labels,
-                                 position_embedding=position_embedding, use_lm_head=use_lm_head)
+        model = GPTModel(vocab_size, n_head, n_embd, n_positions, n_layer, dropout=dropout,
+                         n_static=n_static, n_labels=n_labels,
+                         position_embedding=position_embedding, use_lm_head=use_lm_head)
     elif model_type == 'rnn':
         model = AutoRegressiveRNN(vocab_size, n_embd, n_hidden, n_static=n_static, n_labels=n_labels,
                                   num_layers=n_layer, dropout=dropout, use_lm_head=use_lm_head)

@@ -4,8 +4,10 @@ import pandas as pd
 import numpy as np
 import json
 import argparse
+import time
 
 from tokenizer import LCTokenizer
+from gaussian_process import fit_2d_gp
 
 from sklearn.model_selection import train_test_split
 
@@ -147,6 +149,11 @@ def parse_args():
         type=int,
         default=10,
     )
+    parser.add_argument(
+        "--gp",
+        default=False,
+        action="store_true",
+    )
     return parser.parse_args()
 
 
@@ -188,23 +195,34 @@ def main(args):
         with open("plasticc/dataset_config.json", "w") as f:
             json.dump(config, f)
 
-    def load_sequences(df_meta, df, augment_factor=1):
+    def load_sequences(df_meta, df, augment_factor=1, gp=False):
         sequences = []
-        token_augs = []
-        for i in range(augment_factor):
-            token_augs.append(tokenizer.encode(df, augment=i > 0))
-        zipped = [df_meta["object_id"], df_meta["true_target"]]
-        for static_feature in config["static_features"]:
-            if static_feature in df_meta.columns:
-                zipped += [df_meta[static_feature]]
-        for row in zip(*zipped):
-            id = row[0]
-            class_label = class_keys[int(row[1])]
-            static = list(row[2:])
+        if gp:
+            for i, row in df_meta.iterrows():
+                df_object = df.loc[(df["object_id"] == row["object_id"]), :]
+                resampled_df, _ = fit_2d_gp(df_object, config["pb_wavelengths"])
+                tokens = tokenizer.encode(resampled_df)
+                if len(tokens) > 2:
+                    sequences.append({"x": tokens, "class": class_keys[int(row["true_target"])],
+                                      "static": row[config["static_features"]],
+                                      "object_id": row["object_id"]})
+        else:
+            token_augs = []
             for i in range(augment_factor):
-                if len(token_augs[i][id]) >= 2:
-                    sequences.append({"x": token_augs[i][id], "class": class_label, "static": static, "object_id": id})
-        return sequences
+                token_augs.append(tokenizer.encode(df, augment=i > 0))
+            zipped = [df_meta["object_id"], df_meta["true_target"]]
+            for static_feature in config["static_features"]:
+                if static_feature in df_meta.columns:
+                    zipped += [df_meta[static_feature]]
+            for row in zip(*zipped):
+                id = row[0]
+                class_label = class_keys[int(row[1])]
+                static = list(row[2:])
+                for i in range(augment_factor):
+                    if len(token_augs[i][id]) >= 2:
+                        sequences.append({"x": token_augs[i][id], "class": class_label, "static": static,
+                                          "object_id": id})
+            return sequences
 
     if args.test_fraction > 0:
 
@@ -212,8 +230,9 @@ def main(args):
 
         df_train_split_meta, df_test_split_meta = train_test_split(df_train_meta, test_size=args.test_fraction,
                                                                    random_state=args.random_state)
-        train_sequences = load_sequences(df_train_split_meta, df_train, augment_factor=config["augment_factor"])
-        test_sequences = load_sequences(df_test_split_meta, df_train)
+        train_sequences = load_sequences(df_train_split_meta, df_train, augment_factor=config["augment_factor"],
+                                         gp=args.gp)
+        test_sequences = load_sequences(df_test_split_meta, df_train, gp=args.gp)
         for i, file in enumerate(test_files):
             df_test = pd.read_csv(os.path.join("plasticc", file))
             df_train_split_meta, df_test_split_meta = train_test_split(
@@ -224,12 +243,12 @@ def main(args):
 
     else:
 
-        train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"])
+        train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"], gp=args.gp)
         test_sequences = []
         for i, file in enumerate(test_files):
             df_test = pd.read_csv(os.path.join("plasticc", file))
             test_sequences += load_sequences(df_test_meta[df_test_meta["object_id"].isin(df_test["object_id"].values)],
-                                             df_test)
+                                             df_test, gp=args.gp)
 
     if args.out_suffix is not None:
         np.save("plasticc/train_%s.npy" % args.out_suffix, train_sequences)
