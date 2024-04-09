@@ -127,7 +127,7 @@ class GPTModel(nn.Module):
             self.class_head = nn.Linear(n_embd, n_labels)
             self.use_lm_head = use_lm_head
         else:
-            self.use_lm_head = False
+            self.use_lm_head = True
         if n_static > 0:
             self.static = nn.Linear(n_static, n_embd)
         self.position_embedding = position_embedding
