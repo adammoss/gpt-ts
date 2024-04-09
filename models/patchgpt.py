@@ -52,12 +52,12 @@ class PatchGPT(nn.Module):
 
     def forward(self, x, labels=None, mask=None, static=None):
         B, _, T = x.shape  # x is (B, channels, T)
-        x = F.pad(x, (0, self.patch_size - T % self.patch_size))
-        patch_input = self.to_patches(x)  # (B, T, patch_size * channels)
+        padded_input = F.pad(x, (0, self.patch_size - T % self.patch_size))
+        patch_input = self.to_patches(padded_input)  # (B, T, patch_size * channels)
         x = self.to_patch_embedding(patch_input)  # (B, T, C)
         if mask is not None:
-            mask = F.pad(mask, (0, self.patch_size - T % self.patch_size))
-            patch_mask = self.to_patches(mask)
+            padded_mask = F.pad(mask, (0, self.patch_size - T % self.patch_size))
+            patch_mask = self.to_patches(padded_mask)
             patch_mask = torch.count_nonzero(patch_mask, -1) > 0
             patch_mask = patch_mask.to(torch.int32)
         else:
