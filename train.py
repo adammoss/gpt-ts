@@ -399,7 +399,7 @@ def main(args):
         np.save(os.path.join(dataset, "val_ids.npy"), val_ids)
         np.save(os.path.join(dataset, "test_ids.npy"), test_ids)
 
-    def get_batch(split, batch_size=32, shift='hf' not in model_type, repeat_class=True, transform=np.arcsinh):
+    def get_batch(split, batch_size=32, shift='hf' not in model_type, repeat_class=True):
         # generate a small batch of data of inputs x and targets y
         # Hugging face models expect non shifted labels
         if split == 'train':
@@ -416,7 +416,7 @@ def main(args):
             for ix in np.random.randint(0, len(data), (batch_size,)):
                 sampled_obs = data[ix]['sampled_obs']
                 sampled_mask = data[ix]['sampled_mask']
-                x.append(torch.tensor(transform(sampled_obs), dtype=torch.float32).T)
+                x.append(torch.tensor(sampled_obs, dtype=torch.float32).T)
                 y.append(data[ix]['class'])
                 attention_mask.append(torch.tensor(sampled_mask, dtype=torch.float32).T)
                 static.append(data[ix]['static'])

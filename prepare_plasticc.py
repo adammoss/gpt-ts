@@ -160,6 +160,12 @@ def parse_args():
         type=float,
         default=1.0,
     )
+    parser.add_argument(
+        "--transform",
+        type=str,
+        default="arcsinh",
+        choices=["arcsinh", "linear"],
+    )
     return parser.parse_args()
 
 
@@ -188,10 +194,18 @@ def main(args):
     config["token_window_size"] = args.token_window_size
     config["format"] = args.format
     config["sample_interval"] = args.sample_interval
+    config["transform"] = args.transform
+
+    if args.transform == 'arcsinh':
+        transform = np.arcsinh
+        inverse_transform = np.sinh
+    elif args.transform == 'linear':
+        transform = lambda x: x
+        inverse_transform = lambda x: x
 
     tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
                             config["num_time_bins"], bands=config["bands"],
-                            transform=np.arcsinh, inverse_transform=np.sinh,
+                            transform=transform, inverse_transform=inverse_transform,
                             min_sn=args.sn, window_size=args.token_window_size)
 
     config["vocab_size"] = tokenizer.vocab_size
@@ -234,7 +248,7 @@ def main(args):
                 df_object = df.loc[(df["object_id"] == row["object_id"]), :]
                 _, (sampled_times, sampled_obs, _, sampled_mask) = fit_2d_gp(df_object, config["pb_wavelengths"],
                                                                              sample_interval=args.sample_interval)
-                sequences.append({"sampled_times": sampled_times, "sampled_obs": sampled_obs,
+                sequences.append({"sampled_times": sampled_times, "sampled_obs": transform(sampled_obs),
                                   "sampled_mask": sampled_mask,
                                   "class": class_keys[int(row["true_target"])],
                                   "static": row[config["static_features"]],
