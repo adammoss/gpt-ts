@@ -174,13 +174,11 @@ def main(args):
         "plasticc_test_metadata.csv.gz",
     ]
 
-    if args.small:
-        test_files = [
-            "plasticc_test_lightcurves_01.csv.gz",
-        ]
-    else:
-        test_files = [
-            "plasticc_test_lightcurves_01.csv.gz",
+    test_files = [
+        "plasticc_test_lightcurves_01.csv.gz",
+    ]
+    if not args.small:
+        test_files += [
             "plasticc_test_lightcurves_02.csv.gz",
             "plasticc_test_lightcurves_03.csv.gz",
             "plasticc_test_lightcurves_04.csv.gz",

@@ -414,11 +414,9 @@ def main(args):
         if args.model == 'patch':
             attention_mask = []
             for ix in np.random.randint(0, len(data), (batch_size,)):
-                sampled_obs = data[ix]['sampled_obs']
-                sampled_mask = data[ix]['sampled_mask']
-                x.append(torch.tensor(sampled_obs, dtype=torch.float32).T)
+                x.append(torch.tensor(data[ix]['sampled_obs'], dtype=torch.float32).T)
                 y.append(data[ix]['class'])
-                attention_mask.append(torch.tensor(sampled_mask, dtype=torch.float32).T)
+                attention_mask.append(torch.tensor(data[ix]['sampled_mask'], dtype=torch.float32).T)
                 static.append(data[ix]['static'])
             x_padded = pad_sequence(x, batch_first=True, padding_value=0)
             y_padded = torch.tensor(y, dtype=torch.long)
