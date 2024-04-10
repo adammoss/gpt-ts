@@ -16,9 +16,10 @@ class Patchify(nn.Module):
         self.to_patches = Rearrange('b c (n p) -> b n (p c)', p=patch_size)
 
     def forward(self, x):
-        T = x.shape[-1]  # X is (B, C, T)
+        B, T, C = x.shape  # X is (B, T, C)
+        x = torch.transpose(x, 1, 2)  # (B, C, T)
         x = F.pad(x, (0, self.patch_size - T % self.patch_size))  # Pad the last dimension (T)
-        return self.to_patches(x)
+        return self.to_patches(x)  # (B, num patches, patch size * C)
 
 
 class PatchGPT(nn.Module):
@@ -63,21 +64,21 @@ class PatchGPT(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, x, labels=None, attention_mask=None, static=None):
-        B, T, _ = x.shape  # x is (B, T, channels), mask is also (B, T, channels)
-        patch_x = self.patchify(torch.transpose(x, 1, 2))  # (B, T, patch_size * channels)
+        # x is (B, T, channels), mask is also (B, T, channels)
+        patch_x = self.patchify(x)  # (B, new T (num patches), patch_size * channels)
         if self.pretrain:
-            x = self.patch_embedding(patch_x[:, :-1, :])  # (B, T, C)
+            x = self.patch_embedding(patch_x[:, :-1, :])  # (B, T - 1, C)
         else:
             x = self.patch_embedding(patch_x)  # (B, T, C)
         if attention_mask is not None:
-            patch_mask = self.patchify(torch.transpose(attention_mask, 1, 2))
+            patch_mask = self.patchify(attention_mask)
             patch_mask = torch.count_nonzero(patch_mask, -1) > 0
             patch_mask = patch_mask.to(torch.int32)
             if self.pretrain:
                 patch_mask = patch_mask[:, :-1]
         else:
             patch_mask = None
-        B, T, _ = x.shape
+        B, T, _ = x.shape  # Get new T
         if self.position_embedding == 'absolute':
             pos_emb = self.position_embedding_table(torch.arange(T, device=x.device))  # (T,C)
             x = x + pos_emb  # (B,T,C)
@@ -95,8 +96,8 @@ class PatchGPT(nn.Module):
             loss = loss.mean(dim=-1) * patch_mask
             loss = loss.sum() / torch.sum(patch_mask)
         else:
-            patch_pred = None
             logits = self.class_head(x)  # (B,mT, num_labels)
+            patch_pred = None
             B, T, C = logits.shape
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
 

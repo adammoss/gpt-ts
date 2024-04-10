@@ -399,7 +399,7 @@ def main(args):
         np.save(os.path.join(dataset, "val_ids.npy"), val_ids)
         np.save(os.path.join(dataset, "test_ids.npy"), test_ids)
 
-    def get_batch(split, batch_size=32, shift=True, repeat_class=True):
+    def get_batch(split, batch_size=32, shift='hf' not in model_type, repeat_class=True, transform=np.arcsinh):
         # generate a small batch of data of inputs x and targets y
         # Hugging face models expect non shifted labels
         if split == 'train':
@@ -416,14 +416,13 @@ def main(args):
             for ix in np.random.randint(0, len(data), (batch_size,)):
                 sampled_obs = data[ix]['sampled_obs']
                 sampled_mask = data[ix]['sampled_mask']
-                x.append(torch.tensor(sampled_obs, dtype=torch.float32).T)
+                x.append(torch.tensor(transform(sampled_obs), dtype=torch.float32).T)
                 y.append(data[ix]['class'])
                 attention_mask.append(torch.tensor(sampled_mask, dtype=torch.float32).T)
                 static.append(data[ix]['static'])
             x_padded = pad_sequence(x, batch_first=True, padding_value=0)
             y_padded = torch.tensor(y, dtype=torch.long)
             attention_mask = pad_sequence(attention_mask, batch_first=True, padding_value=0)
-            static = torch.tensor(static, dtype=torch.float32)
         else:
             for ix in np.random.randint(0, len(data), (batch_size,)):
                 sequence = data[ix]['x']
@@ -455,7 +454,7 @@ def main(args):
                 if use_lm_head or repeat_class:
                     # -100 gets ignored by torch cross entropy loss
                     y_padded[i, len(seq):] = -100
-            static = torch.tensor(static, dtype=torch.float32)
+        static = torch.tensor(static, dtype=torch.float32)
         return x_padded.to(device), y_padded.to(device), attention_mask.to(device), static.to(device)
 
     @torch.no_grad()
@@ -479,24 +478,26 @@ def main(args):
                     output = model(X, labels=Y, attention_mask=attention_mask)
                 else:
                     output = model(X, labels=Y, attention_mask=attention_mask, static=static)
-                if attention_mask is not None:
-                    B, T, C = output.logits.shape
-                    seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
-                    last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
-                    last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
-                else:
-                    last_logits = output.logits[torch.arange(B), -1]
-                    last_labels = Y[torch.arange(B), -1]
                 losses[k] = output.loss.item()
-                last_losses[k] = F.cross_entropy(last_logits, last_labels)
-                correct += torch.sum(Y == torch.argmax(output.logits, dim=-1))
-                total += torch.sum(attention_mask)
-                last_correct += torch.sum(last_labels == torch.argmax(last_logits, dim=-1))
-                last_total += X.shape[0]
+                if output.logits is not None:
+                    if attention_mask is not None:
+                        B, T, C = output.logits.shape
+                        seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+                        last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
+                        last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
+                    else:
+                        last_logits = output.logits[torch.arange(B), -1]
+                        last_labels = Y[torch.arange(B), -1]
+                    last_losses[k] = F.cross_entropy(last_logits, last_labels)
+                    correct += torch.sum(Y == torch.argmax(output.logits, dim=-1))
+                    total += torch.sum(attention_mask)
+                    last_correct += torch.sum(last_labels == torch.argmax(last_logits, dim=-1))
+                    last_total += X.shape[0]
             out['%s/loss' % split] = losses.mean()
             out['%s/last_loss' % split] = last_losses.mean()
-            out['%s/accuracy' % split] = (correct / total).item()
-            out['%s/last_accuracy' % split] = last_correct.item() / last_total
+            if total > 0:
+                out['%s/accuracy' % split] = (correct / total).item()
+                out['%s/last_accuracy' % split] = last_correct.item() / last_total
         model.train()
         return out
 
@@ -544,20 +545,19 @@ def main(args):
         else:
             output = model(X, labels=Y, attention_mask=attention_mask, static=static)
 
-        if attention_mask is not None:
-            B, T, C = output.logits.shape
-            seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
-            last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
-            last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
-            offsets = randint(0, seqlens_in_batch, device=device)
-            sliced_logits = output.logits[torch.arange(B), offsets]
-            sliced_labels = Y[torch.arange(B), offsets]
-        else:
-            last_logits = output.logits[torch.arange(B), -1]
-            last_labels = Y[torch.arange(B), -1]
-
         optimizer.zero_grad(set_to_none=True)
         if "class" in args.task:
+            if attention_mask is not None:
+                B, T, C = output.logits.shape
+                seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+                last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
+                last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
+                offsets = randint(0, seqlens_in_batch, device=device)
+                sliced_logits = output.logits[torch.arange(B), offsets]
+                sliced_labels = Y[torch.arange(B), offsets]
+            else:
+                last_logits = output.logits[torch.arange(B), -1]
+                last_labels = Y[torch.arange(B), -1]
             if args.last_label_only:
                 if np.random.rand() < 0.5:
                     loss = F.cross_entropy(last_logits, last_labels, label_smoothing=args.label_smoothing)

@@ -186,6 +186,8 @@ def main(args):
     config["num_time_bins"] = args.num_time_bins
     config["num_bins"] = args.num_bins
     config["token_window_size"] = args.token_window_size
+    config["format"] = args.format
+    config["sample_interval"] = args.sample_interval
 
     tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
                             config["num_time_bins"], bands=config["bands"],
@@ -198,7 +200,7 @@ def main(args):
         with open("plasticc/dataset_config_%s.json" % args.out_suffix, "w") as f:
             json.dump(config, f)
     else:
-        with open("plasticc/dataset_config.json", "w") as f:
+        with open("plasticc/dataset_config_%s.json" % args.format, "w") as f:
             json.dump(config, f)
 
     def load_sequences(df_meta, df, augment_factor=1):
