@@ -120,6 +120,6 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
                               sample_interval)
         pred_x_data = np.vstack([sampled_times, np.ones(len(sampled_times)) * pb_wavelengths[band]]).T
         sampled_flux.append(gp(pred_x_data, return_var=True))
-    sampled_flux = np.array(sampled_flux)
+    sampled_flux = np.array(sampled_flux, dtype=np.float32)
 
     return obj_data, (sampled_times, sampled_flux[:, 0, :], sampled_flux[:, 1, :], sampled_mask)
