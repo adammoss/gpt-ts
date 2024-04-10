@@ -72,8 +72,6 @@ pb_colors = {
 }
 
 config = {
-    "min_flux": -10000,
-    "max_flux": 10000,
     "static_features": ["hostgal_photoz", "hostgal_photoz_err"],
     "num_labels": 18,
     "class_keys": class_keys,
@@ -125,6 +123,16 @@ def parse_args():
         "--max_delta_time",
         type=int,
         default=1000,
+    )
+    parser.add_argument(
+        "--min_flux",
+        type=int,
+        default=-10000,
+    )
+    parser.add_argument(
+        "--max_flux",
+        type=int,
+        default=10000,
     )
     parser.add_argument(
         "--token_window_size",
@@ -192,22 +200,27 @@ def main(args):
 
     df_train_meta = pd.read_csv("plasticc/plasticc_train_metadata.csv.gz")
     df_train = pd.read_csv("plasticc/plasticc_train_lightcurves.csv.gz")
-    print(np.percentile(df_train["flux"], [0.1, 99.9]))
+    print("Training percentiles", np.percentile(df_train["flux"], [0.1, 99.9]))
 
     df_test_meta = pd.read_csv("plasticc/plasticc_test_metadata.csv.gz")
     for file in test_files:
         df_test = pd.read_csv(os.path.join("plasticc", file))
         print(file, np.percentile(df_test["flux"], [0.1, 99.9]))
 
+    config["format"] = args.format
     config["sn"] = args.sn
     config["augment_factor"] = args.augment_factor
-    config["num_time_bins"] = args.num_time_bins
-    config["num_bins"] = args.num_bins
-    config["max_delta_time"] = args.max_delta_time
-    config["token_window_size"] = args.token_window_size
-    config["format"] = args.format
-    config["sample_interval"] = args.sample_interval
     config["transform"] = args.transform
+
+    if "tokens" in args.format:
+        config["num_time_bins"] = args.num_time_bins
+        config["num_bins"] = args.num_bins
+        config["min_flux"] = args.min_flux
+        config["max_flux"] = args.max_flux
+        config["max_delta_time"] = args.max_delta_time
+        config["token_window_size"] = args.token_window_size
+    elif args.format == "gp_sample":
+        config["sample_interval"] = args.sample_interval
 
     if args.transform == 'arcsinh':
         transform = np.arcsinh
@@ -216,12 +229,12 @@ def main(args):
         transform = lambda x: x
         inverse_transform = lambda x: x
 
-    tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
-                            config["num_time_bins"], bands=config["bands"],
-                            transform=transform, inverse_transform=inverse_transform,
-                            min_sn=args.sn, window_size=args.token_window_size)
-
-    config["vocab_size"] = tokenizer.vocab_size
+    if "tokens" in args.format:
+        tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
+                                config["num_time_bins"], bands=config["bands"],
+                                transform=transform, inverse_transform=inverse_transform,
+                                min_sn=args.sn, window_size=args.token_window_size)
+        config["vocab_size"] = tokenizer.vocab_size
 
     if args.out_suffix is not None:
         with open("plasticc/dataset_config_%s.json" % args.out_suffix, "w") as f:
@@ -242,9 +255,7 @@ def main(args):
                                       "static": row[config["static_features"]],
                                       "object_id": row["object_id"]})
         elif args.format == "tokens":
-            token_augs = []
-            for i in range(augment_factor):
-                token_augs.append(tokenizer.encode(df, augment=i > 0))
+            token_augs = [tokenizer.encode(df, augment=i > 0) for i in range(augment_factor)]
             zipped = [df_meta["object_id"], df_meta["true_target"]]
             for static_feature in config["static_features"]:
                 if static_feature in df_meta.columns:
@@ -307,7 +318,7 @@ def main(args):
     print('Num train sequences: %s' % num_train_sequences)
     print('Num test sequences: %s' % num_test_sequences)
 
-    if args.format in ["tokens", "gp_tokens"]:
+    if "tokens" in args.format:
         num_train_tokens = len([x for xs in train_sequences for x in xs['x']])
         num_test_tokens = len([x for xs in test_sequences for x in xs['x']])
         print('Num train tokens: %s' % num_train_tokens)
