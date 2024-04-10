@@ -5,6 +5,7 @@ from peft import LoraConfig, get_peft_model
 
 from models.gpt import GPTModel
 from models.rnn import AutoRegressiveRNN
+from models.patchgpt import PatchGPT
 from utils import randint
 
 from sklearn.model_selection import train_test_split
@@ -32,7 +33,7 @@ def parse_args():
         "--model",
         type=str,
         default="gpt",
-        choices=["gpt", "rnn", "hf_gpt2"],
+        choices=["gpt", "rnn", "hf_gpt2", "patch"],
     )
     parser.add_argument(
         "--base_model_weights",
@@ -185,6 +186,11 @@ def parse_args():
         type=float,
         default=0.0,
     )
+    parser.add_argument(
+        "--patch_size",
+        type=int,
+        default=7,
+    )
     return parser.parse_args()
 
 
@@ -198,6 +204,7 @@ def main(args):
     n_head = args.n_head
     dropout = args.dropout
     n_hidden = args.n_hidden
+    patch_size = args.patch_size
     use_lm_head = args.task in ["pretrain_lm", "finetune_lm"]
 
     batch_size = args.batch_size
@@ -225,6 +232,7 @@ def main(args):
     vocab_size = dataset_config["vocab_size"]
     n_static = len(dataset_config["static_features"])
     n_labels = dataset_config["num_labels"]
+    n_channels = len(dataset_config["bands"])
 
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
@@ -245,6 +253,8 @@ def main(args):
         model_config["n_positions"] = n_positions
         model_config["n_head"] = n_head
         model_config["position_embedding"] = position_embedding
+        if model_type == "patch":
+            model_config["patch_size"] = patch_size
 
     training_config = {
         "task": args.task,
@@ -265,6 +275,10 @@ def main(args):
     elif model_type == 'rnn':
         model = AutoRegressiveRNN(vocab_size, n_embd, n_hidden, n_static=n_static, n_labels=n_labels,
                                   num_layers=n_layer, dropout=dropout, use_lm_head=use_lm_head)
+    elif model_type == 'patch':
+        model = PatchGPT(patch_size, n_channels, n_head, n_embd, n_positions, n_layer, dropout=dropout,
+                         n_static=n_static, n_labels=n_labels,
+                         position_embedding=position_embedding, use_lm_head=use_lm_head)
     elif model_type == 'hf_gpt2':
         from transformers import GPT2Config, GPT2LMHeadModel
         configuration = GPT2Config(vocab_size=vocab_size, n_layer=n_layer,
@@ -330,21 +344,29 @@ def main(args):
     num_train_sequences = len(train_sequences)
     num_val_sequences = len(val_sequences)
     num_test_sequences = len(test_sequences)
-    num_train_tokens = len([x for xs in train_sequences for x in xs['x']])
-    num_val_tokens = len([x for xs in val_sequences for x in xs['x']])
-    num_test_tokens = len([x for xs in test_sequences for x in xs['x']])
-
     train_classes = {}
     for train_sequence in train_sequences:
         if train_sequence['class'] in train_classes:
             train_classes[train_sequence['class']]['count'] += 1
-            train_classes[train_sequence['class']]['length'].append(len(train_sequence['x']))
         else:
-            train_classes[train_sequence['class']] = {'count': 1, 'length': [len(train_sequence['x'])]}
-
+            train_classes[train_sequence['class']] = {'count': 1}
     print('Num train sequences: %s' % num_train_sequences)
     print('Num val sequences: %s' % num_val_sequences)
     print('Num test sequences: %s' % num_test_sequences)
+    if model_type == "patch":
+        num_train_tokens = 0
+        num_val_tokens = 0
+        num_test_tokens = 0
+        for xs in train_sequences:
+            num_train_tokens += int(len(xs['sampled_times']) / patch_size)
+        for xs in val_sequences:
+            num_val_tokens += int(len(xs['sampled_times']) / patch_size)
+        for xs in test_sequences:
+            num_test_tokens += int(len(xs['sampled_times']) / patch_size)
+    else:
+        num_train_tokens = len([x for xs in train_sequences for x in xs['x']])
+        num_val_tokens = len([x for xs in val_sequences for x in xs['x']])
+        num_test_tokens = len([x for xs in test_sequences for x in xs['x']])
     print('Num train tokens: %s' % num_train_tokens)
     print('Num val tokens: %s' % num_val_tokens)
     print('Num test tokens: %s' % num_test_tokens)
@@ -357,9 +379,9 @@ def main(args):
     print('\nTraining class counts:')
     for key, value in dataset_config['class_names'].items():
         if int(key) in train_classes:
-            print(value, train_classes[int(key)]['count'], np.mean(train_classes[int(key)]['length']))
+            print(value, train_classes[int(key)]['count'])
         else:
-            print(value)
+            print(value, 0)
 
     training_config['num_train'] = num_train_sequences
     training_config['num_val'] = num_val_sequences
@@ -389,37 +411,51 @@ def main(args):
         else:
             raise ValueError
         x, y, static = [], [], []
-        for ix in np.random.randint(0, len(data), (batch_size,)):
-            sequence = data[ix]['x']
-            if use_lm_head:
-                if shift:
-                    x.append(torch.tensor(sequence[0:len(sequence) - 1], dtype=torch.long))
-                    y.append(torch.tensor(sequence[1:len(sequence)], dtype=torch.long))
-                else:
-                    x.append(torch.tensor(sequence, dtype=torch.long))
-                    y.append(torch.tensor(sequence, dtype=torch.long))
-            else:
-                if shift:
-                    x.append(torch.tensor(sequence[0:len(sequence) - 1], dtype=torch.long))
-                else:
-                    x.append(torch.tensor(sequence, dtype=torch.long))
-                if repeat_class:
-                    y.append(torch.full((len(sequence) - 1,), data[ix]['class'], dtype=torch.long))
-                else:
-                    y.append(data[ix]['class'])
-            static.append(data[ix]['static'])
-        x_padded = pad_sequence(x, batch_first=True, padding_value=0)
-        if use_lm_head or repeat_class:
-            y_padded = pad_sequence(y, batch_first=True, padding_value=0)
-        else:
+        if args.model == 'patch':
+            attention_mask = []
+            for ix in np.random.randint(0, len(data), (batch_size,)):
+                sampled_obs = data[ix]['sampled_obs']
+                sampled_mask = data[ix]['sampled_mask']
+                x.append(torch.tensor(sampled_obs, dtype=torch.float32).T)
+                y.append(data[ix]['class'])
+                attention_mask.append(torch.tensor(sampled_mask, dtype=torch.float32).T)
+                static.append(data[ix]['static'])
+            x_padded = pad_sequence(x, batch_first=True, padding_value=0)
             y_padded = torch.tensor(y, dtype=torch.long)
-        attention_mask = torch.zeros((batch_size, x_padded.size(1)), dtype=torch.float32)
-        for i, seq in enumerate(x):
-            attention_mask[i, :len(seq)] = 1
+            attention_mask = pad_sequence(attention_mask, batch_first=True, padding_value=0)
+            static = torch.tensor(static, dtype=torch.float32)
+        else:
+            for ix in np.random.randint(0, len(data), (batch_size,)):
+                sequence = data[ix]['x']
+                if use_lm_head:
+                    if shift:
+                        x.append(torch.tensor(sequence[0:len(sequence) - 1], dtype=torch.long))
+                        y.append(torch.tensor(sequence[1:len(sequence)], dtype=torch.long))
+                    else:
+                        x.append(torch.tensor(sequence, dtype=torch.long))
+                        y.append(torch.tensor(sequence, dtype=torch.long))
+                else:
+                    if shift:
+                        x.append(torch.tensor(sequence[0:len(sequence) - 1], dtype=torch.long))
+                    else:
+                        x.append(torch.tensor(sequence, dtype=torch.long))
+                    if repeat_class:
+                        y.append(torch.full((len(sequence) - 1,), data[ix]['class'], dtype=torch.long))
+                    else:
+                        y.append(data[ix]['class'])
+                static.append(data[ix]['static'])
+            x_padded = pad_sequence(x, batch_first=True, padding_value=0)
             if use_lm_head or repeat_class:
-                # -100 gets ignored by torch cross entropy loss
-                y_padded[i, len(seq):] = -100
-        static = torch.tensor(static, dtype=torch.float32)
+                y_padded = pad_sequence(y, batch_first=True, padding_value=0)
+            else:
+                y_padded = torch.tensor(y, dtype=torch.long)
+            attention_mask = torch.zeros((batch_size, x_padded.size(1)), dtype=torch.float32)
+            for i, seq in enumerate(x):
+                attention_mask[i, :len(seq)] = 1
+                if use_lm_head or repeat_class:
+                    # -100 gets ignored by torch cross entropy loss
+                    y_padded[i, len(seq):] = -100
+            static = torch.tensor(static, dtype=torch.float32)
         return x_padded.to(device), y_padded.to(device), attention_mask.to(device), static.to(device)
 
     @torch.no_grad()
@@ -465,7 +501,7 @@ def main(args):
         return out
 
     if device == 'cpu':
-        metrics = estimate_loss(1)
+        metrics = estimate_loss(2)
         print(metrics)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)

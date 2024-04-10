@@ -9,6 +9,18 @@ from einops.layers.torch import Rearrange
 from types import SimpleNamespace
 
 
+class Patchify(nn.Module):
+    def __init__(self, patch_size):
+        super().__init__()
+        self.patch_size = patch_size
+        self.to_patches = Rearrange('b c (n p) -> b n (p c)', p=patch_size)
+
+    def forward(self, x):
+        T = x.shape[-1]  # X is (B, C, T)
+        x = F.pad(x, (0, self.patch_size - T % self.patch_size))  # Pad the last dimension (T)
+        return self.to_patches(x)
+
+
 class PatchGPT(nn.Module):
     def __init__(self, patch_size, channels, n_head, n_embd, n_positions, n_layer, dropout=0, n_static=0, n_labels=0,
                  position_embedding='absolute', pretrain=True, **kwargs):
@@ -17,9 +29,9 @@ class PatchGPT(nn.Module):
 
         patch_dim = channels * patch_size
 
-        self.to_patches = Rearrange('b c (n p) -> b n (p c)', p=patch_size)
+        self.patchify = Patchify(patch_size)
 
-        self.to_patch_embedding = nn.Sequential(
+        self.patch_embedding = nn.Sequential(
             nn.LayerNorm(patch_dim),
             nn.Linear(patch_dim, n_embd),
             nn.LayerNorm(n_embd),
@@ -50,16 +62,19 @@ class PatchGPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, x, labels=None, mask=None, static=None):
-        B, _, T = x.shape  # x is (B, channels, T)
-        padded_input = F.pad(x, (0, self.patch_size - T % self.patch_size))
-        patch_input = self.to_patches(padded_input)  # (B, T, patch_size * channels)
-        x = self.to_patch_embedding(patch_input)  # (B, T, C)
-        if mask is not None:
-            padded_mask = F.pad(mask, (0, self.patch_size - T % self.patch_size))
-            patch_mask = self.to_patches(padded_mask)
+    def forward(self, x, labels=None, attention_mask=None, static=None):
+        B, T, _ = x.shape  # x is (B, T, channels), mask is also (B, T, channels)
+        patch_x = self.patchify(torch.transpose(x, 1, 2))  # (B, T, patch_size * channels)
+        if self.pretrain:
+            x = self.patch_embedding(patch_x[:, :-1, :])  # (B, T, C)
+        else:
+            x = self.patch_embedding(patch_x)  # (B, T, C)
+        if attention_mask is not None:
+            patch_mask = self.patchify(torch.transpose(attention_mask, 1, 2))
             patch_mask = torch.count_nonzero(patch_mask, -1) > 0
             patch_mask = patch_mask.to(torch.int32)
+            if self.pretrain:
+                patch_mask = patch_mask[:, :-1]
         else:
             patch_mask = None
         B, T, _ = x.shape
@@ -71,15 +86,17 @@ class PatchGPT(nn.Module):
             static_emb = self.static(static)  # (B, 1, C)
             x = x + static_emb
         for block in self.blocks:
-            x = block(x, attention_mask=patch_mask)  # (B,T,C)
-        x = self.ln_f(x)  # (B,T,C)
+            x = block(x, attention_mask=patch_mask)  # (B, T, C)
+        x = self.ln_f(x)  # (B, T, C)
         if self.pretrain:
             logits = None
-            patch_pred = self.prediction_head(x)  # (B,T, patch_size * channels)
-            loss = F.mse_loss(patch_pred, patch_input, reduction='none')
+            patch_pred = self.prediction_head(x)  # (B, T, patch_size * channels)
+            loss = F.mse_loss(patch_pred, patch_x[:, 1:, :], reduction='none')
+            loss = loss.mean(dim=-1) * patch_mask
+            loss = loss.sum() / torch.sum(patch_mask)
         else:
             patch_pred = None
-            logits = self.class_head(x)  # (B,T,num_labels)
+            logits = self.class_head(x)  # (B,mT, num_labels)
             B, T, C = logits.shape
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
 

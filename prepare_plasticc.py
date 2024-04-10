@@ -145,14 +145,20 @@ def parse_args():
         default=500,
     )
     parser.add_argument(
-        "--window_size",
+        "--token_window_size",
         type=int,
         default=10,
     )
     parser.add_argument(
-        "--gp",
-        default=False,
-        action="store_true",
+        "--format",
+        type=str,
+        default="tokens",
+        choices=["tokens", "gp_tokens", "gp_samples"],
+    )
+    parser.add_argument(
+        "--sample_interval",
+        type=float,
+        default=1.0,
     )
     return parser.parse_args()
 
@@ -179,12 +185,12 @@ def main(args):
     config["augment_factor"] = args.augment_factor
     config["num_time_bins"] = args.num_time_bins
     config["num_bins"] = args.num_bins
-    config["window_size"] = args.window_size
+    config["token_window_size"] = args.token_window_size
 
     tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
                             config["num_time_bins"], bands=config["bands"],
                             transform=np.arcsinh, inverse_transform=np.sinh,
-                            min_sn=args.sn, window_size=args.window_size)
+                            min_sn=args.sn, window_size=args.token_window_size)
 
     config["vocab_size"] = tokenizer.vocab_size
 
@@ -195,9 +201,9 @@ def main(args):
         with open("plasticc/dataset_config.json", "w") as f:
             json.dump(config, f)
 
-    def load_sequences(df_meta, df, augment_factor=1, gp=False):
+    def load_sequences(df_meta, df, augment_factor=1):
         sequences = []
-        if gp:
+        if args.format == "gp_tokens":
             for i, row in df_meta.iterrows():
                 df_object = df.loc[(df["object_id"] == row["object_id"]), :]
                 resampled_df, _ = fit_2d_gp(df_object, config["pb_wavelengths"])
@@ -206,7 +212,7 @@ def main(args):
                     sequences.append({"x": tokens, "class": class_keys[int(row["true_target"])],
                                       "static": row[config["static_features"]],
                                       "object_id": row["object_id"]})
-        else:
+        elif args.format == "tokens":
             token_augs = []
             for i in range(augment_factor):
                 token_augs.append(tokenizer.encode(df, augment=i > 0))
@@ -215,14 +221,23 @@ def main(args):
                 if static_feature in df_meta.columns:
                     zipped += [df_meta[static_feature]]
             for row in zip(*zipped):
-                id = row[0]
-                class_label = class_keys[int(row[1])]
-                static = list(row[2:])
                 for i in range(augment_factor):
                     if len(token_augs[i][id]) >= 2:
-                        sequences.append({"x": token_augs[i][id], "class": class_label, "static": static,
-                                          "object_id": id})
-            return sequences
+                        sequences.append({"x": token_augs[i][id], "class": class_keys[int(row[1])],
+                                          "static": list(row[2:]), "object_id": row[0]})
+        elif args.format == "gp_samples":
+            for i, row in df_meta.iterrows():
+                if i % 100:
+                    print(i)
+                df_object = df.loc[(df["object_id"] == row["object_id"]), :]
+                _, (sampled_times, sampled_obs, _, sampled_mask) = fit_2d_gp(df_object, config["pb_wavelengths"],
+                                                                             sample_interval=args.sample_interval)
+                sequences.append({"sampled_times": sampled_times, "sampled_obs": sampled_obs,
+                                  "sampled_mask": sampled_mask,
+                                  "class": class_keys[int(row["true_target"])],
+                                  "static": row[config["static_features"]],
+                                  "object_id": row["object_id"]})
+        return sequences
 
     if args.test_fraction > 0:
 
@@ -230,9 +245,8 @@ def main(args):
 
         df_train_split_meta, df_test_split_meta = train_test_split(df_train_meta, test_size=args.test_fraction,
                                                                    random_state=args.random_state)
-        train_sequences = load_sequences(df_train_split_meta, df_train, augment_factor=config["augment_factor"],
-                                         gp=args.gp)
-        test_sequences = load_sequences(df_test_split_meta, df_train, gp=args.gp)
+        train_sequences = load_sequences(df_train_split_meta, df_train, augment_factor=config["augment_factor"])
+        test_sequences = load_sequences(df_test_split_meta, df_train)
         for i, file in enumerate(test_files):
             df_test = pd.read_csv(os.path.join("plasticc", file))
             df_train_split_meta, df_test_split_meta = train_test_split(
@@ -243,32 +257,34 @@ def main(args):
 
     else:
 
-        train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"], gp=args.gp)
+        train_sequences = load_sequences(df_train_meta, df_train, augment_factor=config["augment_factor"])
         test_sequences = []
         for i, file in enumerate(test_files):
             df_test = pd.read_csv(os.path.join("plasticc", file))
             test_sequences += load_sequences(df_test_meta[df_test_meta["object_id"].isin(df_test["object_id"].values)],
-                                             df_test, gp=args.gp)
+                                             df_test)
 
     if args.out_suffix is not None:
         np.save("plasticc/train_%s.npy" % args.out_suffix, train_sequences)
         np.save("plasticc/test_%s.npy" % args.out_suffix, test_sequences)
     else:
-        np.save("plasticc/train.npy", train_sequences)
-        np.save("plasticc/test.npy", test_sequences)
+        np.save("plasticc/train_%s.npy" % args.format, train_sequences)
+        np.save("plasticc/test_%s.npy" % args.format, test_sequences)
 
     num_train_sequences = len(train_sequences)
     num_test_sequences = len(test_sequences)
-    num_train_tokens = len([x for xs in train_sequences for x in xs['x']])
-    num_test_tokens = len([x for xs in test_sequences for x in xs['x']])
 
     print('Num train sequences: %s' % num_train_sequences)
     print('Num test sequences: %s' % num_test_sequences)
-    print('Num train tokens: %s' % num_train_tokens)
-    print('Num test tokens: %s' % num_test_tokens)
-    print('Average train tokens: %s' % (num_train_tokens / num_train_sequences))
-    print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
-    print('Optimal model parameters (Chinchilla paper): %s' % int(num_train_tokens / 20))
+
+    if args.format in ["tokens", "gp_tokens"]:
+        num_train_tokens = len([x for xs in train_sequences for x in xs['x']])
+        num_test_tokens = len([x for xs in test_sequences for x in xs['x']])
+        print('Num train tokens: %s' % num_train_tokens)
+        print('Num test tokens: %s' % num_test_tokens)
+        print('Average train tokens: %s' % (num_train_tokens / num_train_sequences))
+        print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
+        print('Optimal model parameters (Chinchilla paper): %s' % int(num_train_tokens / 20))
 
 
 if __name__ == "__main__":
