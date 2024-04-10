@@ -72,9 +72,6 @@ pb_colors = {
 }
 
 config = {
-    "num_bins": 500,
-    "num_time_bins": 500,
-    "max_delta_time": 1000,
     "min_flux": -10000,
     "max_flux": 10000,
     "static_features": ["hostgal_photoz", "hostgal_photoz_err"],
@@ -85,26 +82,6 @@ config = {
     "pb_wavelengths": pb_wavelengths,
     "pb_colors": pb_colors,
 }
-
-files = [
-    "plasticc_train_metadata.csv.gz",
-    "plasticc_train_lightcurves.csv.gz",
-    "plasticc_test_metadata.csv.gz",
-]
-
-test_files = [
-    "plasticc_test_lightcurves_01.csv.gz",
-    "plasticc_test_lightcurves_02.csv.gz",
-    "plasticc_test_lightcurves_03.csv.gz",
-    "plasticc_test_lightcurves_04.csv.gz",
-    "plasticc_test_lightcurves_05.csv.gz",
-    "plasticc_test_lightcurves_06.csv.gz",
-    "plasticc_test_lightcurves_07.csv.gz",
-    "plasticc_test_lightcurves_08.csv.gz",
-    "plasticc_test_lightcurves_09.csv.gz",
-    "plasticc_test_lightcurves_10.csv.gz",
-    "plasticc_test_lightcurves_11.csv.gz",
-]
 
 
 def parse_args():
@@ -145,6 +122,11 @@ def parse_args():
         default=500,
     )
     parser.add_argument(
+        "--max_delta_time",
+        type=int,
+        default=1000,
+    )
+    parser.add_argument(
         "--token_window_size",
         type=int,
         default=10,
@@ -166,12 +148,42 @@ def parse_args():
         default="arcsinh",
         choices=["arcsinh", "linear"],
     )
+    parser.add_argument(
+        "--small",
+        default=False,
+        action="store_true",
+    )
     return parser.parse_args()
 
 
 def main(args):
     if not os.path.exists("plasticc"):
         os.makedirs("plasticc")
+
+    files = [
+        "plasticc_train_metadata.csv.gz",
+        "plasticc_train_lightcurves.csv.gz",
+        "plasticc_test_metadata.csv.gz",
+    ]
+
+    if args.small:
+        test_files = [
+            "plasticc_test_lightcurves_01.csv.gz",
+        ]
+    else:
+        test_files = [
+            "plasticc_test_lightcurves_01.csv.gz",
+            "plasticc_test_lightcurves_02.csv.gz",
+            "plasticc_test_lightcurves_03.csv.gz",
+            "plasticc_test_lightcurves_04.csv.gz",
+            "plasticc_test_lightcurves_05.csv.gz",
+            "plasticc_test_lightcurves_06.csv.gz",
+            "plasticc_test_lightcurves_07.csv.gz",
+            "plasticc_test_lightcurves_08.csv.gz",
+            "plasticc_test_lightcurves_09.csv.gz",
+            "plasticc_test_lightcurves_10.csv.gz",
+            "plasticc_test_lightcurves_11.csv.gz",
+        ]
 
     for file in files + test_files:
         if not os.path.isfile(os.path.join("plasticc", file)):
@@ -191,6 +203,7 @@ def main(args):
     config["augment_factor"] = args.augment_factor
     config["num_time_bins"] = args.num_time_bins
     config["num_bins"] = args.num_bins
+    config["max_delta_time"] = args.max_delta_time
     config["token_window_size"] = args.token_window_size
     config["format"] = args.format
     config["sample_interval"] = args.sample_interval
@@ -243,7 +256,7 @@ def main(args):
                                           "static": list(row[2:]), "object_id": row[0]})
         elif args.format == "gp_samples":
             for i, row in df_meta.iterrows():
-                if i % 100:
+                if i % 100 == 0:
                     print(i)
                 df_object = df.loc[(df["object_id"] == row["object_id"]), :]
                 _, (sampled_times, sampled_obs, _, sampled_mask) = fit_2d_gp(df_object, config["pb_wavelengths"],
