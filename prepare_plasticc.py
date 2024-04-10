@@ -255,9 +255,10 @@ def main(args):
                         sequences.append({"x": token_augs[i][id], "class": class_keys[int(row[1])],
                                           "static": list(row[2:]), "object_id": row[0]})
         elif args.format == "gp_samples":
+            num = len(df_meta)
             for i, row in df_meta.iterrows():
                 if i % 100 == 0:
-                    print(i)
+                    print("GP %s of %s" % (i, num))
                 df_object = df.loc[(df["object_id"] == row["object_id"]), :]
                 _, (sampled_times, sampled_obs, _, sampled_mask) = fit_2d_gp(df_object, config["pb_wavelengths"],
                                                                              sample_interval=args.sample_interval)
