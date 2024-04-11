@@ -215,7 +215,7 @@ def chunk(args):
         num_chunks = int(len(object_ids) / 10000)
         for i, object_ids_chunk in enumerate(np.array_split(object_ids, num_chunks)):
             df_chunk = df[df["object_id"].isin(object_ids_chunk)]
-            df_chunk.to_csv(file.split(".csv.gz")[0] + "_chunk%s" % i + ".csv", index=False, compression='gzip')
+            df_chunk.to_csv(file.split(".csv.gz")[0] + "_chunk%s" % i + ".csv.gz", index=False, compression='gzip')
 
 
 def stats(args):
