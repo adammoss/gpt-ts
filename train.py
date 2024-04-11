@@ -534,8 +534,12 @@ def main(args):
                         torch.save(model.state_dict(), '%s/best_weights.pt' % dataset)
             if wandb_log:
                 wandb.log(metrics)
-            print(
-                f"step {iter}/{max_iters}: train loss {metrics['train/loss']:.4f}, train accuracy {metrics['train/accuracy']:.4f}, val loss {metrics['val/loss']:.4f}, val accuracy {metrics['val/accuracy']:.4f}")
+            if 'train/accuracy' in metrics:
+                print(
+                    f"step {iter}/{max_iters}: train loss {metrics['train/loss']:.4f}, train accuracy {metrics['train/accuracy']:.4f}, val loss {metrics['val/loss']:.4f}, val accuracy {metrics['val/accuracy']:.4f}")
+            else:
+                print(
+                    f"step {iter}/{max_iters}: train loss {metrics['train/loss']:.4f}, val loss {metrics['val/loss']:.4f}")
 
         # sample a batch of data
         X, Y, attention_mask, static = get_batch('train', batch_size=batch_size)
