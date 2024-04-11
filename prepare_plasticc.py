@@ -251,7 +251,7 @@ def main(args):
                 if len(tokens) > 2:
                     sequences.append({"x": tokens, "class": class_keys[int(row["true_target"])],
                                       "static": row[config["static_features"]],
-                                      "object_id": row["object_id"]})
+                                      "object_id": int(row["object_id"])})
         elif args.format == "tokens":
             token_augs = [tokenizer.encode(df, augment=i > 0) for i in range(augment_factor)]
             zipped = [df_meta["object_id"], df_meta["true_target"]]
@@ -262,20 +262,21 @@ def main(args):
                 for i in range(augment_factor):
                     if len(token_augs[i][id]) >= 2:
                         sequences.append({"x": token_augs[i][id], "class": class_keys[int(row[1])],
-                                          "static": list(row[2:]), "object_id": row[0]})
+                                          "static": list(row[2:]), "object_id": int(row[0])})
         elif args.format == "gp_samples":
             num = len(df_meta)
             for i, row in df_meta.iterrows():
                 if i % 100 == 0:
                     print("GP %s of %s" % (i, num))
                 df_object = df.loc[(df["object_id"] == row["object_id"]), :]
-                _, (sampled_times, sampled_obs, _, sampled_mask) = fit_2d_gp(df_object, config["pb_wavelengths"],
-                                                                             sample_interval=args.sample_interval)
+                _, (sampled_times, sampled_obs, _, sampled_mask), success = fit_2d_gp(df_object,
+                                                                                      config["pb_wavelengths"],
+                                                                                      sample_interval=args.sample_interval)
                 sequences.append({"sampled_times": sampled_times, "sampled_obs": transform(sampled_obs),
                                   "sampled_mask": sampled_mask,
                                   "class": class_keys[int(row["true_target"])],
                                   "static": row[config["static_features"]],
-                                  "object_id": row["object_id"]})
+                                  "object_id": int(row["object_id"]), 'success': success})
         return sequences
 
     if args.test_fraction > 0:

@@ -229,13 +229,12 @@ def main(args):
         with open(os.path.join(dataset, "dataset_config.json")) as f:
             dataset_config = json.load(f)
 
-    vocab_size = dataset_config["vocab_size"]
+    if args.output_dir is not None:
+        os.makedirs(args.output_dir, exist_ok=True)
+
     n_static = len(dataset_config["static_features"])
     n_labels = dataset_config["num_labels"]
     n_channels = len(dataset_config["bands"])
-
-    if args.output_dir is not None:
-        os.makedirs(args.output_dir, exist_ok=True)
 
     model_config = {
         "model_type": model_type,
@@ -244,9 +243,13 @@ def main(args):
         "n_labels": n_labels,
         "n_embd": n_embd,
         "n_layer": n_layer,
-        "vocab_size": vocab_size,
         "use_lm_head": use_lm_head,
     }
+
+    if "vocab_size" in dataset_config:
+        vocab_size = dataset_config["vocab_size"]
+        model_config["vocab_size"] = vocab_size
+
     if model_type == "rnn":
         model_config["n_hidden"] = n_hidden
     else:
