@@ -332,7 +332,7 @@ def process(args):
     if args.test_fraction == 0:
 
         if args.format == "gp_sample":
-            #train_sequences = load_gp_sample_sequences(df_train_meta, df_train, args.sample_interval)
+            train_sequences = load_gp_sample_sequences(df_train_meta, df_train, args.sample_interval)
             test_files = glob.glob(os.path.join("plasticc", args.test_file_pattern))
             with multiprocessing.Pool(processes=args.num_workers) as pool:
                 test_sequences = pool.starmap(load_gp_sample_sequences,
