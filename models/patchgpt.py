@@ -80,7 +80,7 @@ class PatchGPT(PreTrainedModel):
         self.prediction_head = nn.Linear(config.n_embd, config.patch_size * config.n_channels)
         if config.n_labels > 0:
             self.class_head = nn.Linear(config.n_embd, config.n_labels)
-            self.head_type = config.pretrain
+            self.head_type = config.head_type
         else:
             self.head_type = 'pretrain'
         if config.n_static > 0:
@@ -101,7 +101,7 @@ class PatchGPT(PreTrainedModel):
     def forward(self, x, labels=None, attention_mask=None, static=None):
         # x is (B, T, channels), mask is also (B, T, channels)
         patch_x = self.patchify(x)  # (B, new T (num patches), patch_size * channels)
-        if self.pretrain:
+        if self.head_type == 'pretrain':
             x = self.patch_embedding(patch_x[:, :-1, :])  # (B, T - 1, C)
         else:
             x = self.patch_embedding(patch_x)  # (B, T, C)
@@ -109,7 +109,7 @@ class PatchGPT(PreTrainedModel):
             patch_mask = self.patchify(attention_mask)
             patch_mask = torch.count_nonzero(patch_mask, -1) > 0
             patch_mask = patch_mask.to(torch.int32)
-            if self.pretrain:
+            if self.head_type == 'pretrain':
                 patch_mask = patch_mask[:, :-1]
         else:
             patch_mask = None

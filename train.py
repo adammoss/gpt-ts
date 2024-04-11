@@ -206,7 +206,6 @@ def main(args):
     dropout = args.dropout
     n_hidden = args.n_hidden
     patch_size = args.patch_size
-    use_lm_head = args.task in ["pretrain_lm", "finetune_lm"]
 
     batch_size = args.batch_size
     epochs = args.num_epochs
@@ -244,7 +243,6 @@ def main(args):
         "n_labels": n_labels,
         "n_embd": n_embd,
         "n_layer": n_layer,
-        "use_lm_head": use_lm_head,
     }
 
     if "vocab_size" in dataset_config:
@@ -273,15 +271,27 @@ def main(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if model_type == 'gpt':
+        if args.task in ["pretrain_lm", "finetune_lm"]:
+            head_type = 'lm'
+        else:
+            head_type = 'classification'
         config = GPTModelConfig(vocab_size=vocab_size, n_head=n_head, n_embd=n_embd,
                                 n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
                                 n_labels=n_labels, position_embedding=position_embedding, head_type=head_type)
         model = GPTModel(config=config)
     elif model_type == 'rnn':
+        if args.task in ["pretrain_lm", "finetune_lm"]:
+            head_type = 'lm'
+        else:
+            head_type = 'classification'
         config = RNNConfig(vocab_size=vocab_size, n_embd=n_embd, n_hidden=n_hidden, n_layer=n_layer,
                            dropout=dropout, n_static=n_static, n_labels=n_labels, head_type=head_type)
         model = AutoRegressiveRNN(config=config)
     elif model_type == 'patch':
+        if args.task in ["pretrain_lm", "finetune_lm"]:
+            head_type = 'pretrain'
+        else:
+            head_type = 'classification'
         config = PatchGPTConfig(patch_size=patch_size, n_channels=n_channels, n_head=n_head, n_embd=n_embd,
                                 n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
                                 n_labels=n_labels, position_embedding=position_embedding, head_type=head_type)
@@ -404,7 +414,7 @@ def main(args):
         np.save(os.path.join(dataset, "val_ids.npy"), val_ids)
         np.save(os.path.join(dataset, "test_ids.npy"), test_ids)
 
-    def get_batch(split, batch_size=32, shift='hf' not in model_type, repeat_class=True):
+    def get_batch(split, batch_size=32, shift='hf' not in model_type, repeat_class=True, self_supervised=True):
         # generate a small batch of data of inputs x and targets y
         # Hugging face models expect non shifted labels
         if split == 'train':
@@ -429,7 +439,7 @@ def main(args):
         else:
             for ix in np.random.randint(0, len(data), (batch_size,)):
                 sequence = data[ix]['x']
-                if use_lm_head:
+                if self_supervised:
                     if shift:
                         x.append(torch.tensor(sequence[0:len(sequence) - 1], dtype=torch.long))
                         y.append(torch.tensor(sequence[1:len(sequence)], dtype=torch.long))
@@ -447,14 +457,14 @@ def main(args):
                         y.append(data[ix]['class'])
                 static.append(data[ix]['static'])
             x_padded = pad_sequence(x, batch_first=True, padding_value=0)
-            if use_lm_head or repeat_class:
+            if self_supervised or repeat_class:
                 y_padded = pad_sequence(y, batch_first=True, padding_value=0)
             else:
                 y_padded = torch.tensor(y, dtype=torch.long)
             attention_mask = torch.zeros((batch_size, x_padded.size(1)), dtype=torch.float32)
             for i, seq in enumerate(x):
                 attention_mask[i, :len(seq)] = 1
-                if use_lm_head or repeat_class:
+                if self_supervised or repeat_class:
                     # -100 gets ignored by torch cross entropy loss
                     y_padded[i, len(seq):] = -100
         static = torch.tensor(np.array(static), dtype=torch.float32)
@@ -476,7 +486,8 @@ def main(args):
             last_correct = 0
             last_total = 0
             for k in range(eval_iters):
-                X, Y, attention_mask, static = get_batch(split)
+                X, Y, attention_mask, static = get_batch(split,
+                                                         self_supervised=args.task in ["pretrain_lm", "finetune_lm"])
                 if 'hf' in model_type:
                     output = model(X, labels=Y, attention_mask=attention_mask)
                 else:
@@ -544,7 +555,8 @@ def main(args):
                     f"step {iter}/{max_iters}: train loss {metrics['train/loss']:.4f}, val loss {metrics['val/loss']:.4f}")
 
         # sample a batch of data
-        X, Y, attention_mask, static = get_batch('train', batch_size=batch_size)
+        X, Y, attention_mask, static = get_batch('train', batch_size=batch_size,
+                                                 self_supervised=args.task in ["pretrain_lm", "finetune_lm"])
 
         # evaluate the loss
         if 'hf' in model_type:
