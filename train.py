@@ -3,9 +3,10 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.nn import functional as F
 from peft import LoraConfig, get_peft_model
 
-from models.gpt import GPTModel
+from models.gpt import GPTModelConfig, GPTModel
 from models.rnn import AutoRegressiveRNN
-from models.patchgpt import PatchGPT
+from models.patchgpt import PatchGPTConfig, PatchGPT
+from transformers import GPT2Config, GPT2LMHeadModel
 from utils import randint
 
 from sklearn.model_selection import train_test_split
@@ -272,22 +273,22 @@ def main(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if model_type == 'gpt':
-        model = GPTModel(vocab_size, n_head, n_embd, n_positions, n_layer, dropout=dropout,
-                         n_static=n_static, n_labels=n_labels,
-                         position_embedding=position_embedding, use_lm_head=use_lm_head)
+        config = GPTModelConfig(vocab_size=vocab_size, n_head=n_head, n_embd=n_embd,
+                                n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
+                                n_labels=n_labels, position_embedding=position_embedding, use_lm_head=use_lm_head)
+        model = GPTModel(config=config)
     elif model_type == 'rnn':
         model = AutoRegressiveRNN(vocab_size, n_embd, n_hidden, n_static=n_static, n_labels=n_labels,
                                   num_layers=n_layer, dropout=dropout, use_lm_head=use_lm_head)
     elif model_type == 'patch':
-        model = PatchGPT(patch_size, n_channels, n_head, n_embd, n_positions, n_layer, dropout=dropout,
-                         n_static=n_static, n_labels=n_labels,
-                         position_embedding=position_embedding, use_lm_head=use_lm_head)
+        config = PatchGPTConfig(patch_size=patch_size, n_channels=n_channels, n_head=n_head, n_embd=n_embd,
+                                n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
+                                n_labels=n_labels, position_embedding=position_embedding, pretrain=use_lm_head)
+        model = PatchGPT(config)
     elif model_type == 'hf_gpt2':
-        from transformers import GPT2Config, GPT2LMHeadModel
-        configuration = GPT2Config(vocab_size=vocab_size, n_layer=n_layer,
-                                   n_embd=n_embd, n_head=n_head,
-                                   n_positions=n_positions)
-        model = GPT2LMHeadModel(configuration)
+        config = GPT2Config(vocab_size=vocab_size, n_layer=n_layer, n_embd=n_embd, n_head=n_head,
+                            n_positions=n_positions)
+        model = GPT2LMHeadModel(config)
 
     model = model.to(device)
     print(model)

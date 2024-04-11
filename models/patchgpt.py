@@ -5,8 +5,41 @@ from torch.nn import functional as F
 from models.gpt import Block
 
 from einops.layers.torch import Rearrange
+from transformers import PretrainedConfig, PreTrainedModel
 
 from types import SimpleNamespace
+
+
+class PatchGPTConfig(PretrainedConfig):
+    model_type = "patchgpt"
+
+    def __init__(
+        self,
+        patch_size: int = 7,
+        n_channels: int = 3,
+        n_head: int = 6,
+        n_embd: int = 36,
+        n_positions: int = 1024,
+        n_layer: int = 6,
+        dropout: float = 0.0,
+        n_static: int = 0,
+        n_labels: int = 0,
+        position_embedding: str = 'absolute',
+        pretrain: bool = True,
+        **kwargs,
+    ):
+        self.patch_size = patch_size
+        self.n_channels = n_channels
+        self.n_head = n_head
+        self.n_embd = n_embd
+        self.n_positions = n_positions
+        self.n_layer = n_layer
+        self.dropout = dropout
+        self.n_static = n_static
+        self.n_labels = n_labels
+        self.position_embedding = position_embedding
+        self.pretrain = pretrain
+        super().__init__(**kwargs)
 
 
 class Patchify(nn.Module):
@@ -22,35 +55,36 @@ class Patchify(nn.Module):
         return self.to_patches(x)  # (B, num patches, patch size * C)
 
 
-class PatchGPT(nn.Module):
-    def __init__(self, patch_size, channels, n_head, n_embd, n_positions, n_layer, dropout=0, n_static=0, n_labels=0,
-                 position_embedding='absolute', pretrain=True, **kwargs):
-        super().__init__()
-        self.patch_size = patch_size
+class PatchGPT(PreTrainedModel):
+    config_class = PatchGPTConfig
 
-        patch_dim = channels * patch_size
+    def __init__(self, config: PatchGPTConfig):
+        super().__init__(config)
+        self.patch_size = config.patch_size
 
-        self.patchify = Patchify(patch_size)
+        patch_dim = config.n_channels * config.patch_size
+
+        self.patchify = Patchify(config.patch_size)
 
         self.patch_embedding = nn.Sequential(
             nn.LayerNorm(patch_dim),
-            nn.Linear(patch_dim, n_embd),
-            nn.LayerNorm(n_embd),
+            nn.Linear(patch_dim, config.n_embd),
+            nn.LayerNorm(config.n_embd),
         )
 
-        self.position_embedding_table = nn.Embedding(n_positions, n_embd)
-        self.blocks = nn.ModuleList([Block(n_embd, n_head, n_positions, dropout=dropout,
-                                           position_embedding=position_embedding) for _ in range(n_layer)])
-        self.ln_f = nn.LayerNorm(n_embd)  # final layer norm
-        self.prediction_head = nn.Linear(n_embd, patch_size * channels)
-        if n_labels > 0:
-            self.class_head = nn.Linear(n_embd, n_labels)
-            self.pretrain = pretrain
+        self.position_embedding_table = nn.Embedding(config.n_positions, config.n_embd)
+        self.blocks = nn.ModuleList([Block(config.n_embd, config.n_head, config.n_positions, dropout=config.dropout,
+                                           position_embedding=config.position_embedding) for _ in range(config.n_layer)])
+        self.ln_f = nn.LayerNorm(config.n_embd)  # final layer norm
+        self.prediction_head = nn.Linear(config.n_embd, config.patch_size * config.n_channels)
+        if config.n_labels > 0:
+            self.class_head = nn.Linear(config.n_embd, config.n_labels)
+            self.pretrain = config.pretrain
         else:
             self.pretrain = True
-        if n_static > 0:
-            self.static = nn.Linear(n_static, n_embd)
-        self.position_embedding = position_embedding
+        if config.n_static > 0:
+            self.static = nn.Linear(config.n_static, config.n_embd)
+        self.position_embedding = config.position_embedding
 
         # better init, not covered in the original GPT video, but important, will cover in followup video
         self.apply(self._init_weights)

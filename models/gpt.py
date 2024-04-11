@@ -7,6 +7,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from transformers import PretrainedConfig, PreTrainedModel
+
 from types import SimpleNamespace
 
 
@@ -111,26 +113,56 @@ class Block(nn.Module):
         return x
 
 
-class GPTModel(nn.Module):
+class GPTModelConfig(PretrainedConfig):
+    model_type = "gptmodel"
 
-    def __init__(self, vocab_size, n_head, n_embd, n_positions, n_layer, dropout=0, n_static=0, n_labels=0,
-                 position_embedding='absolute', use_lm_head=True, **kwargs):
-        super().__init__()
+    def __init__(
+            self,
+            vocab_size: int = 3501,
+            n_head: int = 6,
+            n_embd: int = 36,
+            n_positions: int = 1024,
+            n_layer: int = 6,
+            dropout: float = 0.0,
+            n_static: int = 0,
+            n_labels: int = 0,
+            position_embedding: str = 'absolute',
+            use_lm_head: bool = True,
+            **kwargs,
+    ):
+        self.vocab_size = vocab_size
+        self.n_head = n_head
+        self.n_embd = n_embd
+        self.n_positions = n_positions
+        self.n_layer = n_layer
+        self.dropout = dropout
+        self.n_static = n_static
+        self.n_labels = n_labels
+        self.position_embedding = position_embedding
+        self.use_lm_head = use_lm_head
+        super().__init__(**kwargs)
+
+
+class GPTModel(PreTrainedModel):
+    config_class = GPTModelConfig
+
+    def __init__(self, config: GPTModelConfig):
+        super().__init__(config)
         # each token directly reads off the logits for the next token from a lookup table
-        self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
-        self.position_embedding_table = nn.Embedding(n_positions, n_embd)
-        self.blocks = nn.ModuleList([Block(n_embd, n_head, n_positions, dropout=dropout,
-                                           position_embedding=position_embedding) for _ in range(n_layer)])
-        self.ln_f = nn.LayerNorm(n_embd)  # final layer norm
-        self.lm_head = nn.Linear(n_embd, vocab_size)
-        if n_labels > 0:
-            self.class_head = nn.Linear(n_embd, n_labels)
-            self.use_lm_head = use_lm_head
+        self.token_embedding_table = nn.Embedding(config.vocab_size, config.n_embd)
+        self.position_embedding_table = nn.Embedding(config.n_positions, config.n_embd)
+        self.blocks = nn.ModuleList([Block(config.n_embd, config.n_head, config.n_positions, dropout=config.dropout,
+                                           position_embedding=config.position_embedding) for _ in range(config.n_layer)])
+        self.ln_f = nn.LayerNorm(config.n_embd)  # final layer norm
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
+        if config.n_labels > 0:
+            self.class_head = nn.Linear(config.n_embd, config.n_labels)
+            self.use_lm_head = config.use_lm_head
         else:
             self.use_lm_head = True
-        if n_static > 0:
-            self.static = nn.Linear(n_static, n_embd)
-        self.position_embedding = position_embedding
+        if config.n_static > 0:
+            self.static = nn.Linear(config.n_static, config.n_embd)
+        self.position_embedding = config.position_embedding
 
         # better init, not covered in the original GPT video, but important, will cover in followup video
         self.apply(self._init_weights)
