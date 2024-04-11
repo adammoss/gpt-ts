@@ -455,7 +455,7 @@ def main(args):
                 if use_lm_head or repeat_class:
                     # -100 gets ignored by torch cross entropy loss
                     y_padded[i, len(seq):] = -100
-        static = torch.tensor(static, dtype=torch.float32)
+        static = torch.tensor(np.array(static), dtype=torch.float32)
         return x_padded.to(device), y_padded.to(device), attention_mask.to(device), static.to(device)
 
     @torch.no_grad()
