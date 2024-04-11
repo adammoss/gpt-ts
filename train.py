@@ -4,7 +4,7 @@ from torch.nn import functional as F
 from peft import LoraConfig, get_peft_model
 
 from models.gpt import GPTModelConfig, GPTModel
-from models.rnn import AutoRegressiveRNN
+from models.rnn import RNNConfig, AutoRegressiveRNN
 from models.patchgpt import PatchGPTConfig, PatchGPT
 from transformers import GPT2Config, GPT2LMHeadModel
 from utils import randint
@@ -275,15 +275,16 @@ def main(args):
     if model_type == 'gpt':
         config = GPTModelConfig(vocab_size=vocab_size, n_head=n_head, n_embd=n_embd,
                                 n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
-                                n_labels=n_labels, position_embedding=position_embedding, use_lm_head=use_lm_head)
+                                n_labels=n_labels, position_embedding=position_embedding, head_type=head_type)
         model = GPTModel(config=config)
     elif model_type == 'rnn':
-        model = AutoRegressiveRNN(vocab_size, n_embd, n_hidden, n_static=n_static, n_labels=n_labels,
-                                  num_layers=n_layer, dropout=dropout, use_lm_head=use_lm_head)
+        config = RNNConfig(vocab_size=vocab_size, n_embd=n_embd, n_hidden=n_hidden, n_layer=n_layer,
+                           dropout=dropout, n_static=n_static, n_labels=n_labels, head_type=head_type)
+        model = AutoRegressiveRNN(config=config)
     elif model_type == 'patch':
         config = PatchGPTConfig(patch_size=patch_size, n_channels=n_channels, n_head=n_head, n_embd=n_embd,
                                 n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
-                                n_labels=n_labels, position_embedding=position_embedding, pretrain=use_lm_head)
+                                n_labels=n_labels, position_embedding=position_embedding, head_type=head_type)
         model = PatchGPT(config)
     elif model_type == 'hf_gpt2':
         config = GPT2Config(vocab_size=vocab_size, n_layer=n_layer, n_embd=n_embd, n_head=n_head,

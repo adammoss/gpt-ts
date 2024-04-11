@@ -15,7 +15,7 @@ from types import SimpleNamespace
 class Head(nn.Module):
     """ one head of self-attention """
 
-    def __init__(self, head_size, n_embd, n_positions, dropout=0, position_embedding=None):
+    def __init__(self, head_size, n_embd, n_positions, dropout=0, position_embedding=None, is_causal=True):
         super().__init__()
         self.key = nn.Linear(n_embd, head_size, bias=False)
         self.query = nn.Linear(n_embd, head_size, bias=False)
@@ -25,6 +25,7 @@ class Head(nn.Module):
         self.max_position_embeddings = n_positions
         self.position_embedding = position_embedding
         self.distance_embedding = nn.Embedding(2 * self.max_position_embeddings - 1, head_size)
+        self.is_causal = is_causal
 
     def forward(self, x, attention_mask=None):
         # input of size (batch, time-step, channels)
@@ -45,7 +46,8 @@ class Head(nn.Module):
             relative_position_scores = torch.einsum("bld,lrd->blr", q, positional_embedding)  # (B, T, T)
             wei = wei + relative_position_scores
 
-        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))  # (B, T, T)
+        if self.is_causal:
+            wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))  # (B, T, T)
 
         if attention_mask is not None:
             attention_mask = attention_mask[:, None, :]  # (B, 1, T)
@@ -65,9 +67,9 @@ class Head(nn.Module):
 class MultiHeadAttention(nn.Module):
     """ multiple heads of self-attention in parallel """
 
-    def __init__(self, n_head, head_size, n_embd, n_positions, dropout=0.0, position_embedding=None):
+    def __init__(self, n_head, head_size, n_embd, n_positions, dropout=0.0, position_embedding=None, is_causal=True):
         super().__init__()
-        self.heads = nn.ModuleList([Head(head_size, n_embd, n_positions, dropout=dropout,
+        self.heads = nn.ModuleList([Head(head_size, n_embd, n_positions, dropout=dropout, is_causal=is_causal,
                                          position_embedding=position_embedding) for _ in range(n_head)])
         self.proj = nn.Linear(head_size * n_head, n_embd)
         self.dropout = nn.Dropout(dropout)
@@ -97,12 +99,12 @@ class FeedFoward(nn.Module):
 class Block(nn.Module):
     """ Transformer block: communication followed by computation """
 
-    def __init__(self, n_embd, n_head, n_positions, dropout=0, position_embedding=None):
+    def __init__(self, n_embd, n_head, n_positions, dropout=0, position_embedding=None, is_causal=True):
         # n_embd: embedding dimension, n_head: the number of heads we'd like
         super().__init__()
         head_size = n_embd // n_head
         self.sa = MultiHeadAttention(n_head, head_size, n_embd, n_positions,
-                                     dropout=dropout, position_embedding=position_embedding)
+                                     dropout=dropout, position_embedding=position_embedding, is_causal=is_causal)
         self.ffwd = FeedFoward(n_embd, dropout=dropout)
         self.ln1 = nn.LayerNorm(n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
@@ -127,9 +129,11 @@ class GPTModelConfig(PretrainedConfig):
             n_static: int = 0,
             n_labels: int = 0,
             position_embedding: str = 'absolute',
-            use_lm_head: bool = True,
+            is_causal: bool = True,
+            head_type: str = 'lm',
             **kwargs,
     ):
+        assert head_type in ['lm', 'classification']
         self.vocab_size = vocab_size
         self.n_head = n_head
         self.n_embd = n_embd
@@ -139,7 +143,8 @@ class GPTModelConfig(PretrainedConfig):
         self.n_static = n_static
         self.n_labels = n_labels
         self.position_embedding = position_embedding
-        self.use_lm_head = use_lm_head
+        self.is_causal = is_causal
+        self.head_type = head_type
         super().__init__(**kwargs)
 
 
@@ -152,14 +157,15 @@ class GPTModel(PreTrainedModel):
         self.token_embedding_table = nn.Embedding(config.vocab_size, config.n_embd)
         self.position_embedding_table = nn.Embedding(config.n_positions, config.n_embd)
         self.blocks = nn.ModuleList([Block(config.n_embd, config.n_head, config.n_positions, dropout=config.dropout,
-                                           position_embedding=config.position_embedding) for _ in range(config.n_layer)])
+                                           position_embedding=config.position_embedding,
+                                           is_causal=config.is_causal) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd)  # final layer norm
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
         if config.n_labels > 0:
             self.class_head = nn.Linear(config.n_embd, config.n_labels)
-            self.use_lm_head = config.use_lm_head
+            self.head_type = config.head_type
         else:
-            self.use_lm_head = True
+            self.head_type = 'lm'
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
         self.position_embedding = config.position_embedding
@@ -190,7 +196,7 @@ class GPTModel(PreTrainedModel):
         for block in self.blocks:
             x = block(x, attention_mask=attention_mask)  # (B,T,C)
         x = self.ln_f(x)  # (B,T,C)
-        if self.use_lm_head:
+        if self.head_type == 'lm':
             logits = self.lm_head(x)  # (B,T,vocab_size)
         else:
             logits = self.class_head(x)  # (B,T,num_labels)
@@ -203,4 +209,3 @@ class GPTModel(PreTrainedModel):
 
         # For compat with Hugging face output
         return SimpleNamespace(logits=logits, loss=loss)
-

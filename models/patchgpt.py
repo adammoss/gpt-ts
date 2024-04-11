@@ -25,9 +25,10 @@ class PatchGPTConfig(PretrainedConfig):
         n_static: int = 0,
         n_labels: int = 0,
         position_embedding: str = 'absolute',
-        pretrain: bool = True,
+        head_type: str = 'pretrain',
         **kwargs,
     ):
+        assert head_type in ['pretrain', 'classification']
         self.patch_size = patch_size
         self.n_channels = n_channels
         self.n_head = n_head
@@ -38,7 +39,7 @@ class PatchGPTConfig(PretrainedConfig):
         self.n_static = n_static
         self.n_labels = n_labels
         self.position_embedding = position_embedding
-        self.pretrain = pretrain
+        self.head_type = head_type
         super().__init__(**kwargs)
 
 
@@ -79,9 +80,9 @@ class PatchGPT(PreTrainedModel):
         self.prediction_head = nn.Linear(config.n_embd, config.patch_size * config.n_channels)
         if config.n_labels > 0:
             self.class_head = nn.Linear(config.n_embd, config.n_labels)
-            self.pretrain = config.pretrain
+            self.head_type = config.pretrain
         else:
-            self.pretrain = True
+            self.head_type = 'pretrain'
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
         self.position_embedding = config.position_embedding
@@ -123,7 +124,7 @@ class PatchGPT(PreTrainedModel):
         for block in self.blocks:
             x = block(x, attention_mask=patch_mask)  # (B, T, C)
         x = self.ln_f(x)  # (B, T, C)
-        if self.pretrain:
+        if self.head_type == 'pretrain':
             logits = None
             patch_pred = self.prediction_head(x)  # (B, T, patch_size * channels)
             loss = F.mse_loss(patch_pred, patch_x[:, 1:, :], reduction='none')

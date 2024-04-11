@@ -2,12 +2,42 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from transformers import PretrainedConfig, PreTrainedModel
+
 from types import SimpleNamespace
 
 
+class RNNConfig(PretrainedConfig):
+    model_type = "rnn"
+
+    def __init__(
+            self,
+            vocab_size: int = 3501,
+            n_embd: int = 36,
+            n_hidden: int = 16,
+            n_layer: int = 6,
+            dropout: float = 0.0,
+            n_static: int = 0,
+            n_labels: int = 0,
+            head_type: str = 'lm',
+            **kwargs,
+    ):
+        assert head_type in ['lm', 'classification']
+        self.vocab_size = vocab_size
+        self.n_embd = n_embd
+        self.n_hidden = n_hidden
+        self.n_layer = n_layer
+        self.dropout = dropout
+        self.n_static = n_static
+        self.n_labels = n_labels
+        self.head_type = head_type
+        super().__init__(**kwargs)
+
+
 class AutoRegressiveRNN(nn.Module):
-    def __init__(self, vocab_size, n_embd, n_hidden, n_labels=0,
-                 num_layers=1, dropout=0, n_static=0, use_lm_head=True, **kwargs):
+    config_class = RNNConfig
+
+    def __init__(self, config: RNNConfig):
         """
         Initialize the autoregressive RNN model with an embedding layer.
 
@@ -19,22 +49,22 @@ class AutoRegressiveRNN(nn.Module):
             num_layers (int, optional): Number of recurrent layers. Default: 1
         """
         super(AutoRegressiveRNN, self).__init__()
-        self.n_hidden = n_hidden
-        self.num_layers = num_layers
+        self.n_hidden = config.n_hidden
+        self.n_layer = config.n_layer
 
         # Embedding layer
-        self.embedding = nn.Embedding(vocab_size, n_embd)
+        self.embedding = nn.Embedding(config.vocab_size, config.n_embd)
         # RNN layer
-        self.rnn = nn.GRU(n_embd, n_hidden, num_layers, batch_first=True, dropout=dropout)
+        self.rnn = nn.GRU(config.n_embd, config.n_hidden, config.n_layer, batch_first=True, dropout=config.dropout)
         # Fully connected layer that outputs the predictions
-        self.lm_head = nn.Linear(n_hidden, vocab_size)
-        if n_labels > 0:
-            self.class_head = nn.Linear(n_hidden, n_labels)
-            self.use_lm_head = use_lm_head
+        self.lm_head = nn.Linear(config.n_hidden, config.vocab_size)
+        if config.n_labels > 0:
+            self.class_head = nn.Linear(config.n_hidden, config.n_labels)
+            self.head_type = config.head_type
         else:
-            self.use_lm_head = False
-        if n_static > 0:
-            self.static = nn.Linear(n_static, n_embd)
+            self.head_type = 'lm'
+        if config.n_static > 0:
+            self.static = nn.Linear(config.n_static, config.n_embd)
 
     def forward(self, x, labels=None, attention_mask=None, static=None):
         """
@@ -61,7 +91,7 @@ class AutoRegressiveRNN(nn.Module):
         # Forward propagate the RNN
         out, _ = self.rnn(x, h0)
 
-        if self.use_lm_head:
+        if self.head_type == 'lm':
             logits = self.lm_head(out)  # (B,T,vocab_size)
         else:
             logits = self.class_head(out)  # (B,T,num_labels)
