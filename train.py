@@ -192,6 +192,11 @@ def parse_args():
         type=int,
         default=7,
     )
+    parser.add_argument(
+        "--random_mask_ratio",
+        type=float,
+        default=0,
+    )
     return parser.parse_args()
 
 
@@ -206,6 +211,7 @@ def main(args):
     dropout = args.dropout
     n_hidden = args.n_hidden
     patch_size = args.patch_size
+    random_mask_ratio = args.random_mask_ratio
 
     batch_size = args.batch_size
     epochs = args.num_epochs
@@ -296,7 +302,8 @@ def main(args):
             head_type = 'classification'
         config = PatchGPTConfig(patch_size=patch_size, n_channels=n_channels, n_head=n_head, n_embd=n_embd,
                                 n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
-                                n_labels=n_labels, position_embedding=position_embedding, head_type=head_type)
+                                n_labels=n_labels, position_embedding=position_embedding, head_type=head_type,
+                                random_mask_ratio=random_mask_ratio)
         model = PatchGPT(config)
     elif model_type == 'hf_gpt2':
         config = GPT2Config(vocab_size=vocab_size, n_layer=n_layer, n_embd=n_embd, n_head=n_head,
