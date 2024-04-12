@@ -144,7 +144,7 @@ def parse_args():
     parser.add_argument(
         "--token_window_size",
         type=int,
-        default=10,
+        default=1,
     )
     parser.add_argument(
         "--format",
@@ -153,7 +153,7 @@ def parse_args():
         choices=["tokens", "gp_tokens", "gp_sample"],
     )
     parser.add_argument(
-        "--sample_interval",
+        "--gp_sample_interval",
         type=float,
         default=1.0,
     )
@@ -309,7 +309,7 @@ def process(args):
         config["max_delta_time"] = args.max_delta_time
         config["token_window_size"] = args.token_window_size
     elif args.format == "gp_sample":
-        config["sample_interval"] = args.sample_interval
+        config["gp_sample_interval"] = args.gp_sample_interval
 
     if args.transform == 'arcsinh':
         transform = np.arcsinh
@@ -395,9 +395,9 @@ def process(args):
             df = pd.read_csv(file)
             filename, ext = file.split(".", 1)
             if 'train' in file:
-                sequences = load_gp_sample_sequences(df_train_meta, df, args.sample_interval)
+                sequences = load_gp_sample_sequences(df_train_meta, df, args.gp_sample_interval)
             else:
-                sequences = load_gp_sample_sequences(df_test_meta, df, args.sample_interval)
+                sequences = load_gp_sample_sequences(df_test_meta, df, args.gp_sample_interval)
             np.save("%s_gp_sample.npy" % filename, sequences)
 
 
