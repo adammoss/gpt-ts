@@ -79,20 +79,24 @@ class PatchGPT(PreTrainedModel):
             nn.LayerNorm(config.n_embd),
         )
 
+        self.position_embedding = config.position_embedding
         self.position_embedding_table = nn.Embedding(config.n_positions, config.n_embd)
+
         is_causal = config.head_type in ['pretrain_lm', 'classification']
         self.blocks = nn.ModuleList([Block(config.n_embd, config.n_head, config.n_positions, dropout=config.dropout,
                                            position_embedding=config.position_embedding,
                                            is_causal=is_causal) for _ in range(config.n_layer)])
+
         self.ln_f = nn.LayerNorm(config.n_embd)  # final layer norm
+
+        self.head_type = config.head_type
         self.prediction_head = nn.Linear(config.n_embd, config.patch_size * config.n_channels)
         if config.n_labels > 0:
             self.class_head = nn.Linear(config.n_embd, config.n_labels)
-        self.head_type = config.head_type
+
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
-        self.position_embedding = config.position_embedding
-
+            
         self.random_mask_ratio = config.random_mask_ratio
 
         # better init, not covered in the original GPT video, but important, will cover in followup video
@@ -110,10 +114,13 @@ class PatchGPT(PreTrainedModel):
         # x is (B, T, channels), mask is also (B, T, channels)
         patch_x = self.patchify(x)  # (B, new T (num patches), patch_size * channels)
         x = self.patch_embedding(patch_x)  # (B, T, C)
+
         if self.head_type == 'pretrain_lm':
             patch_x = patch_x[:, 1:, :]
             x = x[:, :-1, :]
+
         B, T, _ = x.shape  # Get new T
+
         if attention_mask is not None:
             patch_mask = self.patchify(attention_mask)
             patch_mask = torch.count_nonzero(patch_mask, -1) > 0
@@ -122,21 +129,27 @@ class PatchGPT(PreTrainedModel):
                 patch_mask = patch_mask[:, :-1]
         else:
             patch_mask = torch.ones((B, T)).to(x.device)
+
         patch_indices = patch_mask.nonzero()
         if self.random_mask_ratio > 0:
             patch_indices = patch_indices[
                 torch.randperm(patch_indices.size(0))[:int(patch_indices.size(0) * self.random_mask_ratio)]]
             patch_mask[patch_indices[:, 0], patch_indices[:, 1]] = 0
+
         if self.position_embedding == 'absolute':
             pos_emb = self.position_embedding_table(torch.arange(T, device=x.device))  # (T, C)
             x = x + pos_emb  # (B,T,C)
+
         if static is not None:
             static = static[:, None, :]
             static_emb = self.static(static)  # (B, 1, C)
             x = x + static_emb
+
         for block in self.blocks:
             x = block(x, attention_mask=patch_mask)  # (B, T, C)
+
         x = self.ln_f(x)  # (B, T, C)
+
         if self.head_type in ['pretrain_lm', 'pretrain_mask']:
             logits = None
             patch_pred = self.prediction_head(x)  # (B, T, patch_size * channels)
