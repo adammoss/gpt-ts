@@ -3,12 +3,14 @@ import scipy.optimize as op
 from astropy.stats import biweight_location
 import numpy as np
 from functools import partial
-import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', band_column="passband",
               parameter_column="flux", parameter_error_column="flux_err", guess_length_scale=20.0,
-              sample_interval=1, replace=True):
+              sample_interval=1, replace=True, outliers=True):
     """
     :param df: pandas DataFrame containing the object data
     :param pb_wavelengths: dictionary of passband wavelengths for each passband value
@@ -20,31 +22,24 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
     :param guess_length_scale: initial length scale guess for the Matern32Kernel kernel
     :param sample_interval: interval at which to sample the flux values for each passband
     :param replace: boolean indicating whether to replace the original flux values with the resampled flux values
+    :param outliers: boolean indicating whether to replace the GP flux values with the original flux values for the outliers
     :return: a tuple containing the modified DataFrame and a tuple of sampled times, flux values, flux errors, and mask information
     """
     obj_data = df.copy()
     bands = np.unique(obj_data[band_column])
 
-    ref_flux_bands = {}
-
     if subtract_background:
-
         for band in bands:
             mask = obj_data[band_column] == band
             band_data = obj_data[mask]
-
             # Use a biweight location to estimate the background
             ref_flux = biweight_location(band_data[parameter_column])
-
-            ref_flux_bands[band] = -ref_flux
-
             obj_data.loc[mask, parameter_column] -= ref_flux
 
     obj_times = obj_data[time_column].astype(float)
     obj_flux = obj_data[parameter_column].astype(float)
     obj_flux_error = obj_data[parameter_error_column].astype(float)
     obj_wavelengths = obj_data[band_column].map(pb_wavelengths)
-    obj_ref_flux = obj_data[band_column].map(ref_flux_bands)
 
     def neg_log_like(p):  # Objective function: negative log-likelihood
         gp.set_parameter_vector(p)
@@ -89,7 +84,7 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
         # Fit failed. Print out a warning, and use the initial guesses for fit
         # parameters.
         obj = obj_data["object_id"][0]
-        print("GP fit failed for {}! Using guessed GP parameters.".format(obj))
+        logger.warning("GP fit failed for {}! Using guessed GP parameters.".format(obj))
         gp.set_parameter_vector(default_gp_param)
 
     gp = partial(gp.predict, obj_flux)
@@ -100,11 +95,11 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
     obj_data.loc[:, 'resampled_%s' % parameter_column] = resampled_flux
     obj_data.loc[:, 'resampled_%s' % parameter_error_column] = var ** 0.5
 
-    failures = (obj_data['resampled_%s' % parameter_column] - obj_data[parameter_column]) ** 2 / (
-            obj_data[parameter_error_column] ** 2 + obj_data['resampled_%s' % parameter_error_column] ** 2) > 25
-
-    obj_data.loc[failures, 'resampled_%s' % parameter_column] = obj_data.loc[failures, parameter_column]
-    obj_data.loc[failures, 'resampled_%s' % parameter_error_column] = obj_data.loc[failures, parameter_error_column]
+    if outliers:
+        failures = (obj_data['resampled_%s' % parameter_column] - obj_data[parameter_column]) ** 2 / (
+                obj_data[parameter_error_column] ** 2 + obj_data['resampled_%s' % parameter_error_column] ** 2) > 25
+        obj_data.loc[failures, 'resampled_%s' % parameter_column] = obj_data.loc[failures, parameter_column]
+        obj_data.loc[failures, 'resampled_%s' % parameter_error_column] = obj_data.loc[failures, parameter_error_column]
 
     if replace:
         obj_data.loc[:, parameter_column] = obj_data.loc[:, 'resampled_%s' % parameter_column]

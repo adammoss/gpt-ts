@@ -91,6 +91,12 @@ def parse_args():
         choices=["download", "chunk", "process", "stats"],
     )
     parser.add_argument(
+        "--format",
+        type=str,
+        default="tokens",
+        choices=["tokens", "gp_tokens", "gp_sample"],
+    )
+    parser.add_argument(
         "--sn",
         type=float,
         default=3.0,
@@ -146,15 +152,14 @@ def parse_args():
         default=1,
     )
     parser.add_argument(
-        "--format",
-        type=str,
-        default="tokens",
-        choices=["tokens", "gp_tokens", "gp_sample"],
-    )
-    parser.add_argument(
         "--gp_sample_interval",
         type=float,
         default=1.0,
+    )
+    parser.add_argument(
+        "--gp_max_sequences",
+        type=int,
+        default=100000,
     )
     parser.add_argument(
         "--transform",
@@ -176,11 +181,6 @@ def parse_args():
         "--chunk_size",
         type=int,
         default=10000,
-    )
-    parser.add_argument(
-        "--gp_max_sequences",
-        type=int,
-        default=100000,
     )
     return parser.parse_args()
 
@@ -228,18 +228,23 @@ def stats(args):
         print(file, np.percentile(df["flux"], [0.1, 99.9]))
 
 
-def load_token_sequences(df_meta, df, tokenizer, augment_factor=1):
+def filename_or_df(df_meta, df):
     if not isinstance(df_meta, pd.DataFrame):
         df_meta = pd.read_csv(df_meta)
     if not isinstance(df, pd.DataFrame):
         df = pd.read_csv(df)
-    meta = df_meta[df_meta["object_id"].isin(df["object_id"].values)].copy()
+    df_meta = df_meta[df_meta["object_id"].isin(df["object_id"].values)].copy()
+    return df_meta, df
+
+
+def load_token_sequences(df_meta, df, tokenizer, augment_factor=1):
+    df_meta, df = filename_or_df(df_meta, df)
     sequences = []
     token_augs = [tokenizer.encode(df, augment=i > 0) for i in range(augment_factor)]
-    zipped = [meta["object_id"], meta["true_target"]]
+    zipped = [df_meta["object_id"], df_meta["true_target"]]
     for static_feature in config["static_features"]:
-        if static_feature in meta.columns:
-            zipped += [meta[static_feature]]
+        if static_feature in df_meta.columns:
+            zipped += [df_meta[static_feature]]
     for row in zip(*zipped):
         object_id = int(row[0])
         for i in range(augment_factor):
@@ -250,13 +255,9 @@ def load_token_sequences(df_meta, df, tokenizer, augment_factor=1):
 
 
 def load_gp_token_sequences(df_meta, df, tokenizer):
-    if not isinstance(df_meta, pd.DataFrame):
-        df_meta = pd.read_csv(df_meta)
-    if not isinstance(df, pd.DataFrame):
-        df = pd.read_csv(df)
-    meta = df_meta[df_meta["object_id"].isin(df["object_id"].values)].copy()
+    df_meta, df = filename_or_df(df_meta, df)
     sequences = []
-    for i, row in meta.iterrows():
+    for i, row in df_meta.iterrows():
         df_object = df.loc[(df["object_id"] == row["object_id"]), :]
         resampled_df, _ = fit_2d_gp(df_object, config["pb_wavelengths"])
         tokens = tokenizer.encode(resampled_df)
@@ -268,15 +269,11 @@ def load_gp_token_sequences(df_meta, df, tokenizer):
 
 
 def load_gp_sample_sequences(df_meta, df, sample_interval, max_sequences=None):
-    if not isinstance(df_meta, pd.DataFrame):
-        df_meta = pd.read_csv(df_meta)
-    if not isinstance(df, pd.DataFrame):
-        df = pd.read_csv(df)
-    meta = df_meta[df_meta["object_id"].isin(df["object_id"].values)].copy()
+    df_meta, df = filename_or_df(df_meta, df)
     sequences = []
-    num = len(meta)
+    num = len(df_meta)
     count = 0
-    for i, row in meta.iterrows():
+    for i, row in df_meta.iterrows():
         count += 1
         if max_sequences is not None and count > max_sequences:
             continue
@@ -315,18 +312,20 @@ def process(args):
     elif args.format == "gp_sample":
         config["gp_sample_interval"] = args.gp_sample_interval
 
-    if args.transform == "arcsinh":
-        transform = np.arcsinh
-        inverse_transform = np.sinh
-    elif args.transform == "linear":
-        transform = lambda x: x
-        inverse_transform = lambda x: x
-
     if "tokens" in args.format:
+
+        if args.transform == "arcsinh":
+            transform = np.arcsinh
+            inverse_transform = np.sinh
+        elif args.transform == "linear":
+            transform = lambda x: x
+            inverse_transform = lambda x: x
+
         tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
                                 config["num_time_bins"], bands=config["bands"],
                                 transform=transform, inverse_transform=inverse_transform,
                                 min_sn=args.sn, window_size=args.token_window_size)
+
         config["vocab_size"] = tokenizer.vocab_size
 
     if args.out_suffix is not None:
