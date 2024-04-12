@@ -197,6 +197,12 @@ def parse_args():
         type=float,
         default=0,
     )
+    parser.add_argument(
+        "--transform",
+        type=str,
+        default="arcsinh",
+        choices=["arcsinh", "linear"],
+    )
     return parser.parse_args()
 
 
@@ -438,7 +444,10 @@ def main(args):
         if args.model == 'patch':
             attention_mask = []
             for ix in np.random.randint(0, len(data), (batch_size,)):
-                x.append(torch.tensor(data[ix]['sampled_obs'], dtype=torch.float32).T)
+                if args.transform == "arcsinh":
+                    x.append(torch.tensor(np.arcsinh(data[ix]['sampled_obs']), dtype=torch.float32).T)
+                elif args.transform == "linear":
+                    x.append(torch.tensor(data[ix]['sampled_obs'], dtype=torch.float32).T)
                 y.append(data[ix]['class'])
                 attention_mask.append(torch.tensor(data[ix]['sampled_mask'], dtype=torch.float32).T)
                 static.append(data[ix]['static'])
