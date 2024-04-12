@@ -398,7 +398,7 @@ def process(args):
                 sequences = load_gp_sample_sequences(df_train_meta, df, args.sample_interval)
             else:
                 sequences = load_gp_sample_sequences(df_test_meta, df, args.sample_interval)
-            np.save("%s_gp_sample.%s" % (filename, ext), sequences)
+            np.save("%s_gp_sample.npy" % filename, sequences)
 
 
 if __name__ == "__main__":
