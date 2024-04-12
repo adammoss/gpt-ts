@@ -157,18 +157,23 @@ class GPTModel(PreTrainedModel):
         super().__init__(config)
         # each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(config.vocab_size, config.n_embd)
+
+        self.position_embedding = config.position_embedding
         self.position_embedding_table = nn.Embedding(config.n_positions, config.n_embd)
+
         self.blocks = nn.ModuleList([Block(config.n_embd, config.n_head, config.n_positions, dropout=config.dropout,
                                            position_embedding=config.position_embedding,
                                            is_causal=config.is_causal) for _ in range(config.n_layer)])
+
         self.ln_f = nn.LayerNorm(config.n_embd)  # final layer norm
+
+        self.head_type = config.head_type
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
         if config.n_labels > 0:
             self.class_head = nn.Linear(config.n_embd, config.n_labels)
-        self.head_type = config.head_type
+
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
-        self.position_embedding = config.position_embedding
 
         # better init, not covered in the original GPT video, but important, will cover in followup video
         self.apply(self._init_weights)
@@ -186,16 +191,21 @@ class GPTModel(PreTrainedModel):
 
         # idx and targets are both (B,T) tensor of integers
         x = self.token_embedding_table(idx)  # (B,T,C)
+
         if self.position_embedding == 'absolute':
             pos_emb = self.position_embedding_table(torch.arange(T, device=idx.device))  # (T,C)
             x = x + pos_emb  # (B,T,C)
+
         if static is not None:
             static = static[:, None, :]
             static_emb = self.static(static)  # (B, 1, C)
             x = x + static_emb
+
         for block in self.blocks:
             x = block(x, attention_mask=attention_mask)  # (B,T,C)
+
         x = self.ln_f(x)  # (B,T,C)
+
         if self.head_type == 'lm':
             logits = self.lm_head(x)  # (B,T,vocab_size)
         else:

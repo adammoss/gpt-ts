@@ -96,7 +96,7 @@ class PatchGPT(PreTrainedModel):
 
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
-            
+
         self.random_mask_ratio = config.random_mask_ratio
 
         # better init, not covered in the original GPT video, but important, will cover in followup video
