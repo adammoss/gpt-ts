@@ -26,6 +26,7 @@ class PatchGPTConfig(PretrainedConfig):
         n_labels: int = 0,
         position_embedding: str = 'absolute',
         head_type: str = 'pretrain',
+        random_mask_ratio: float = 0.0,
         **kwargs,
     ):
         assert head_type in ['pretrain', 'classification']
@@ -40,6 +41,7 @@ class PatchGPTConfig(PretrainedConfig):
         self.n_labels = n_labels
         self.position_embedding = position_embedding
         self.head_type = head_type
+        self.random_mask_ratio = random_mask_ratio
         super().__init__(**kwargs)
 
 
@@ -74,9 +76,10 @@ class PatchGPT(PreTrainedModel):
         )
 
         self.position_embedding_table = nn.Embedding(config.n_positions, config.n_embd)
+        is_causal = config.random_mask_ratio == 0 or config.head_type == 'classification'
         self.blocks = nn.ModuleList([Block(config.n_embd, config.n_head, config.n_positions, dropout=config.dropout,
                                            position_embedding=config.position_embedding,
-                                           is_causal=True) for _ in range(config.n_layer)])
+                                           is_causal=is_causal) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd)  # final layer norm
         self.prediction_head = nn.Linear(config.n_embd, config.patch_size * config.n_channels)
         if config.n_labels > 0:
@@ -87,6 +90,8 @@ class PatchGPT(PreTrainedModel):
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
         self.position_embedding = config.position_embedding
+
+        self.random_mask_ratio = config.random_mask_ratio
 
         # better init, not covered in the original GPT video, but important, will cover in followup video
         self.apply(self._init_weights)
