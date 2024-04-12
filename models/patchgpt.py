@@ -75,7 +75,8 @@ class PatchGPT(PreTrainedModel):
 
         self.position_embedding_table = nn.Embedding(config.n_positions, config.n_embd)
         self.blocks = nn.ModuleList([Block(config.n_embd, config.n_head, config.n_positions, dropout=config.dropout,
-                                           position_embedding=config.position_embedding) for _ in range(config.n_layer)])
+                                           position_embedding=config.position_embedding,
+                                           is_causal=True) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd)  # final layer norm
         self.prediction_head = nn.Linear(config.n_embd, config.patch_size * config.n_channels)
         if config.n_labels > 0:

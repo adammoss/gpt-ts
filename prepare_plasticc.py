@@ -179,6 +179,11 @@ def parse_args():
         type=int,
         default=2,
     )
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=10000,
+    )
     return parser.parse_args()
 
 
@@ -212,7 +217,7 @@ def chunk(args):
     for file in glob.glob(os.path.join("plasticc", args.test_file_pattern)):
         df = pd.read_csv(file)
         object_ids = np.unique(df["object_id"].values)
-        num_chunks = int(len(object_ids) / 10000)
+        num_chunks = int(len(object_ids) / args.chunk_size)
         for i, object_ids_chunk in enumerate(np.array_split(object_ids, num_chunks)):
             df_chunk = df[df["object_id"].isin(object_ids_chunk)]
             df_chunk.to_csv(file.split(".csv.gz")[0] + "_chunk%s" % i + ".csv.gz", index=False, compression='gzip')
