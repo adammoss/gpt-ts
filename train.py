@@ -204,6 +204,11 @@ def parse_args():
         default="arcsinh",
         choices=["arcsinh", "linear"],
     )
+    parser.add_argument(
+        "--push_to_hub",
+        default=False,
+        action="store_true",
+    )
     return parser.parse_args()
 
 
@@ -407,8 +412,8 @@ def main(args):
     print('Num train tokens: %s' % num_train_tokens)
     print('Num val tokens: %s' % num_val_tokens)
     print('Num test tokens: %s' % num_test_tokens)
-    print('Average train tokens: %s' % (num_train_tokens / num_train_sequences))
-    print('Average val tokens: %s' % (num_val_tokens / num_val_sequences))
+    print('Average train tokens: %s' % int(num_train_tokens / num_train_sequences))
+    print('Average val tokens: %s' % int(num_val_tokens / num_val_sequences))
     if num_test_sequences > 0:
         print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
     if model_type == 'gpt':
@@ -453,7 +458,7 @@ def main(args):
             for ix in np.random.randint(0, len(data), (batch_size,)):
                 if args.transform == "arcsinh":
                     x.append(torch.tensor(np.arcsinh(data[ix]['sampled_obs']), dtype=torch.float32).T)
-                elif args.transform == "linear":
+                else:
                     x.append(torch.tensor(data[ix]['sampled_obs'], dtype=torch.float32).T)
                 y.append(data[ix]['class'])
                 attention_mask.append(torch.tensor(data[ix]['sampled_mask'], dtype=torch.float32).T)
@@ -553,7 +558,6 @@ def main(args):
         )
 
     best_loss = np.inf
-    best_iter = 0
 
     max_iters = int(epochs * len(train_sequences) / batch_size)
 
@@ -564,12 +568,13 @@ def main(args):
             metrics = estimate_loss(eval_iters)
             if metrics['val/loss'] < best_loss:
                 best_loss = metrics['val/loss']
-                best_iter = iter
                 if iter > min_iters_save:
                     if args.output_dir is not None:
                         torch.save(model.state_dict(), '%s/best_weights.pt' % args.output_dir)
                     else:
                         torch.save(model.state_dict(), '%s/best_weights.pt' % dataset)
+                    if args.push_to_hub:
+                        model.push_to_hub('adammoss/%s' % model_type, commit_message=f"Iteration {iter}", blocking=False)
             if wandb_log:
                 wandb.log(metrics)
             if 'train/accuracy' in metrics:
