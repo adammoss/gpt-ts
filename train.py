@@ -15,6 +15,7 @@ import os
 import json
 import wandb
 import argparse
+import glob
 
 
 def parse_args():
@@ -226,9 +227,15 @@ def main(args):
     min_iters_save = args.min_iters_save
     learning_rate = args.learning_rate
 
-    train_files = list(set(args.train_file))
-    val_files = list(set(args.val_file))
-    test_files = list(set(args.test_file))
+    train_files = []
+    for file in list(set(args.train_file)):
+        train_files += glob.glob(file)
+    val_files = []
+    for file in list(set(args.val_file)):
+        val_files += glob.glob(file)
+    test_files = []
+    for file in list(set(args.test_file)):
+        test_files += glob.glob(file)
 
     wandb_log = args.logger == 'wandb'
     if wandb_log and args.wandb_api_key is not None:
