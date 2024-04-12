@@ -22,8 +22,6 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
     :param replace: boolean indicating whether to replace the original flux values with the resampled flux values
     :return: a tuple containing the modified DataFrame and a tuple of sampled times, flux values, flux errors, and mask information
     """
-    print("Computing Gaussian Process...")
-    start_time = time.time()
     obj_data = df.copy()
     bands = np.unique(obj_data[band_column])
 
@@ -75,8 +73,6 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
     x_data = np.vstack([obj_times, obj_wavelengths]).T
     gp.compute(x_data, obj_flux_error)
 
-    print(time.time() - start_time)
-
     bounds = [(0, np.log(1000 ** 2))]
     bounds = [(default_gp_param[0] - 10, default_gp_param[0] + 10)] + bounds
     results = op.minimize(
@@ -95,8 +91,6 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
         obj = obj_data["object_id"][0]
         print("GP fit failed for {}! Using guessed GP parameters.".format(obj))
         gp.set_parameter_vector(default_gp_param)
-
-    print(time.time() - start_time)
 
     gp = partial(gp.predict, obj_flux)
 
@@ -117,8 +111,6 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
         obj_data.loc[:, parameter_error_column] = obj_data.loc[:, 'resampled_%s' % parameter_error_column]
         obj_data = obj_data.drop(columns=['resampled_%s' % parameter_column, 'resampled_%s' % parameter_error_column])
 
-    print(time.time() - start_time)
-
     sampled_times = np.arange(min(obj_times), max(obj_times), sample_interval)
     sampled_flux = []
     sampled_mask = np.zeros((len(bands), len(sampled_times)), dtype=np.int32)
@@ -130,7 +122,5 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
         pred_x_data = np.vstack([sampled_times, np.ones(len(sampled_times)) * pb_wavelengths[band]]).T
         sampled_flux.append(gp(pred_x_data, return_var=True))
     sampled_flux = np.array(sampled_flux, dtype=np.float32)
-
-    print('End', time.time() - start_time)
 
     return obj_data, (sampled_times, sampled_flux[:, 0, :], sampled_flux[:, 1, :], sampled_mask), results.success
