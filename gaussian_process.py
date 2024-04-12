@@ -101,7 +101,7 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
     obj_data.loc[:, 'resampled_%s' % parameter_error_column] = var ** 0.5
 
     failures = (obj_data['resampled_%s' % parameter_column] - obj_data[parameter_column]) ** 2 / (
-            obj_data[parameter_error_column] ** 2 + obj_data['resampled_%s' % parameter_error_column] ** 2) > 10
+            obj_data[parameter_error_column] ** 2 + obj_data['resampled_%s' % parameter_error_column] ** 2) > 25
 
     obj_data.loc[failures, 'resampled_%s' % parameter_column] = obj_data.loc[failures, parameter_column]
     obj_data.loc[failures, 'resampled_%s' % parameter_error_column] = obj_data.loc[failures, parameter_error_column]

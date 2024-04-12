@@ -178,6 +178,11 @@ def parse_args():
         type=int,
         default=10000,
     )
+    parser.add_argument(
+        "--gp_max_sequences",
+        type=int,
+        default=100000,
+    )
     return parser.parse_args()
 
 
@@ -263,7 +268,7 @@ def load_gp_token_sequences(df_meta, df, tokenizer):
     return sequences
 
 
-def load_gp_sample_sequences(df_meta, df, sample_interval):
+def load_gp_sample_sequences(df_meta, df, sample_interval, max_sequences=None):
     if not isinstance(df_meta, pd.DataFrame):
         df_meta = pd.read_csv(df_meta)
     if not isinstance(df, pd.DataFrame):
@@ -274,7 +279,7 @@ def load_gp_sample_sequences(df_meta, df, sample_interval):
     count = 0
     for i, row in meta.iterrows():
         count += 1
-        if count > 100:
+        if max_sequences is not None and count > max_sequences:
             continue
         if count % 100 == 0:
             print("GP %s of %s" % (count, num))
@@ -395,9 +400,11 @@ def process(args):
             df = pd.read_csv(file)
             filename, ext = file.split(".", 1)
             if "train" in file:
-                sequences = load_gp_sample_sequences(df_train_meta, df, args.gp_sample_interval)
+                sequences = load_gp_sample_sequences(df_train_meta, df, args.gp_sample_interval,
+                                                     max_sequences=args.gp_max_sequences)
             else:
-                sequences = load_gp_sample_sequences(df_test_meta, df, args.gp_sample_interval)
+                sequences = load_gp_sample_sequences(df_test_meta, df, args.gp_sample_interval,
+                                                     max_sequences=args.gp_max_sequences)
             np.save("%s_gp_sample.npy" % filename, sequences)
 
 

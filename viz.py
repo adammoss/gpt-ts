@@ -49,4 +49,4 @@ def plot_lightcurve(dfs, bands=None, time_column='mjd', band_column='passband', 
             axes[i].set_xlabel('Time (days)')
             axes[i].set_ylabel('Flux')
             axes[i].grid()
-    plt.show()
+    return axes
