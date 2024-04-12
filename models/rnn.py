@@ -23,6 +23,8 @@ class RNNConfig(PretrainedConfig):
             **kwargs,
     ):
         assert head_type in ['lm', 'classification']
+        if head_type == 'classification':
+            assert n_labels > 0
         self.vocab_size = vocab_size
         self.n_embd = n_embd
         self.n_hidden = n_hidden
@@ -60,9 +62,7 @@ class AutoRegressiveRNN(nn.Module):
         self.lm_head = nn.Linear(config.n_hidden, config.vocab_size)
         if config.n_labels > 0:
             self.class_head = nn.Linear(config.n_hidden, config.n_labels)
-            self.head_type = config.head_type
-        else:
-            self.head_type = 'lm'
+        self.head_type = config.head_type
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
 

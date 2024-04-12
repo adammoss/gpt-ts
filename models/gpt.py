@@ -134,6 +134,8 @@ class GPTModelConfig(PretrainedConfig):
             **kwargs,
     ):
         assert head_type in ['lm', 'classification']
+        if head_type == 'classification':
+            assert n_labels > 0
         self.vocab_size = vocab_size
         self.n_head = n_head
         self.n_embd = n_embd
@@ -163,9 +165,7 @@ class GPTModel(PreTrainedModel):
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
         if config.n_labels > 0:
             self.class_head = nn.Linear(config.n_embd, config.n_labels)
-            self.head_type = config.head_type
-        else:
-            self.head_type = 'lm'
+        self.head_type = config.head_type
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
         self.position_embedding = config.position_embedding

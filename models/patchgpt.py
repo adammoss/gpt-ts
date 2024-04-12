@@ -32,6 +32,8 @@ class PatchGPTConfig(PretrainedConfig):
         assert head_type in ['pretrain_lm', 'pretrain_mask', 'classification']
         if head_type == 'classification':
             assert n_labels > 0
+        if head_type == 'pretrain_mask':
+            assert random_mask_ratio > 0
         self.patch_size = patch_size
         self.n_channels = n_channels
         self.n_head = n_head
