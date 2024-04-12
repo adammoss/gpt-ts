@@ -603,10 +603,7 @@ def main(args):
                 last_logits = output.logits[torch.arange(B), -1]
                 last_labels = Y[torch.arange(B), -1]
             if args.last_label_only:
-                if np.random.rand() < 0.5:
-                    loss = F.cross_entropy(last_logits, last_labels, label_smoothing=args.label_smoothing)
-                else:
-                    loss = F.cross_entropy(sliced_logits, sliced_labels, label_smoothing=args.label_smoothing)
+                loss = F.cross_entropy(last_logits, last_labels, label_smoothing=args.label_smoothing)
             else:
                 loss = F.cross_entropy(sliced_logits, sliced_labels, label_smoothing=args.label_smoothing)
         else:
