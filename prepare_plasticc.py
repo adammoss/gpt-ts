@@ -288,7 +288,7 @@ def load_gp_sample_sequences(df_meta, df, sample_interval):
                           "sampled_mask": sampled_mask,
                           "class": class_keys[int(row["true_target"])],
                           "static": row[config["static_features"]],
-                          "object_id": int(row["object_id"]), 'success': success})
+                          "object_id": int(row["object_id"]), "success": success})
     return sequences
 
 
@@ -311,10 +311,10 @@ def process(args):
     elif args.format == "gp_sample":
         config["gp_sample_interval"] = args.gp_sample_interval
 
-    if args.transform == 'arcsinh':
+    if args.transform == "arcsinh":
         transform = np.arcsinh
         inverse_transform = np.sinh
-    elif args.transform == 'linear':
+    elif args.transform == "linear":
         transform = lambda x: x
         inverse_transform = lambda x: x
 
@@ -342,14 +342,14 @@ def process(args):
             test_sequences = []
             for i, file in enumerate(glob.glob(os.path.join("plasticc", args.file_pattern))):
                 df = pd.read_csv(file)
-                if 'train' in file:
+                if "train" in file:
                     df_train_split_meta, df_test_split_meta = train_test_split(
-                        df_train_meta[df_train_meta['object_id'].isin(df['object_id'].values)],
+                        df_train_meta[df_train_meta["object_id"].isin(df["object_id"].values)],
                         test_size=args.test_fraction,
                         random_state=args.random_state)
                 else:
                     df_train_split_meta, df_test_split_meta = train_test_split(
-                        df_test_meta[df_test_meta['object_id'].isin(df['object_id'].values)],
+                        df_test_meta[df_test_meta["object_id"].isin(df["object_id"].values)],
                         test_size=args.test_fraction,
                         random_state=args.random_state)
                 train_sequences += load_token_sequences(df_train_split_meta, df, tokenizer,
@@ -362,7 +362,7 @@ def process(args):
                                                    augment_factor=config["augment_factor"])
             test_sequences = []
             for i, file in enumerate(glob.glob(os.path.join("plasticc", args.file_pattern))):
-                if 'test' in file:
+                if "test" in file:
                     df = pd.read_csv(file)
                     test_sequences += load_token_sequences(df_test_meta, df, tokenizer)
 
@@ -376,17 +376,17 @@ def process(args):
         num_train_sequences = len(train_sequences)
         num_test_sequences = len(test_sequences)
 
-        print('Num train sequences: %s' % num_train_sequences)
-        print('Num test sequences: %s' % num_test_sequences)
+        print("Num train sequences: %s" % num_train_sequences)
+        print("Num test sequences: %s" % num_test_sequences)
 
         if "tokens" in args.format:
-            num_train_tokens = len([x for xs in train_sequences for x in xs['x']])
-            num_test_tokens = len([x for xs in test_sequences for x in xs['x']])
-            print('Num train tokens: %s' % num_train_tokens)
-            print('Num test tokens: %s' % num_test_tokens)
-            print('Average train tokens: %s' % (num_train_tokens / num_train_sequences))
-            print('Average test tokens: %s' % (num_test_tokens / num_test_sequences))
-            print('Optimal model parameters (Chinchilla paper): %s' % int(num_train_tokens / 20))
+            num_train_tokens = len([x for xs in train_sequences for x in xs["x"]])
+            num_test_tokens = len([x for xs in test_sequences for x in xs["x"]])
+            print("Num train tokens: %s" % num_train_tokens)
+            print("Num test tokens: %s" % num_test_tokens)
+            print("Average train tokens: %s" % (num_train_tokens / num_train_sequences))
+            print("Average test tokens: %s" % (num_test_tokens / num_test_sequences))
+            print("Optimal model parameters (Chinchilla paper): %s" % int(num_train_tokens / 20))
 
     elif args.format == "gp_sample":
 
@@ -394,7 +394,7 @@ def process(args):
             print(file)
             df = pd.read_csv(file)
             filename, ext = file.split(".", 1)
-            if 'train' in file:
+            if "train" in file:
                 sequences = load_gp_sample_sequences(df_train_meta, df, args.gp_sample_interval)
             else:
                 sequences = load_gp_sample_sequences(df_test_meta, df, args.gp_sample_interval)

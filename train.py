@@ -117,7 +117,7 @@ def parse_args():
         "--task",
         type=str,
         default="pretrain_lm",
-        choices=["pretrain_lm", "pretrain_class", "finetune_lm", "finetune_class"],
+        choices=["pretrain_lm", "pretrain_mask", "pretrain_class", "finetune_lm", "finetune_class"],
     )
     parser.add_argument(
         "--val_fraction",
@@ -289,7 +289,9 @@ def main(args):
         model = AutoRegressiveRNN(config=config)
     elif model_type == 'patch':
         if args.task in ["pretrain_lm", "finetune_lm"]:
-            head_type = 'pretrain'
+            head_type = 'pretrain_lm'
+        elif args.task in ["pretrain_mask"]:
+            head_type = 'pretrain_mask'
         else:
             head_type = 'classification'
         config = PatchGPTConfig(patch_size=patch_size, n_channels=n_channels, n_head=n_head, n_embd=n_embd,

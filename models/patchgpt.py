@@ -14,22 +14,24 @@ class PatchGPTConfig(PretrainedConfig):
     model_type = "patchgpt"
 
     def __init__(
-        self,
-        patch_size: int = 7,
-        n_channels: int = 3,
-        n_head: int = 6,
-        n_embd: int = 36,
-        n_positions: int = 1024,
-        n_layer: int = 6,
-        dropout: float = 0.0,
-        n_static: int = 0,
-        n_labels: int = 0,
-        position_embedding: str = 'absolute',
-        head_type: str = 'pretrain',
-        random_mask_ratio: float = 0.0,
-        **kwargs,
+            self,
+            patch_size: int = 7,
+            n_channels: int = 3,
+            n_head: int = 6,
+            n_embd: int = 36,
+            n_positions: int = 1024,
+            n_layer: int = 6,
+            dropout: float = 0.0,
+            n_static: int = 0,
+            n_labels: int = 0,
+            position_embedding: str = 'absolute',
+            head_type: str = 'pretrain_lm',
+            random_mask_ratio: float = 0.0,
+            **kwargs,
     ):
-        assert head_type in ['pretrain', 'classification']
+        assert head_type in ['pretrain_lm', 'pretrain_mask', 'classification']
+        if head_type == 'classification':
+            assert n_labels > 0
         self.patch_size = patch_size
         self.n_channels = n_channels
         self.n_head = n_head
@@ -76,7 +78,7 @@ class PatchGPT(PreTrainedModel):
         )
 
         self.position_embedding_table = nn.Embedding(config.n_positions, config.n_embd)
-        is_causal = config.random_mask_ratio == 0 or config.head_type == 'classification'
+        is_causal = config.head_type in ['pretrain_lm', 'classification']
         self.blocks = nn.ModuleList([Block(config.n_embd, config.n_head, config.n_positions, dropout=config.dropout,
                                            position_embedding=config.position_embedding,
                                            is_causal=is_causal) for _ in range(config.n_layer)])
@@ -84,9 +86,7 @@ class PatchGPT(PreTrainedModel):
         self.prediction_head = nn.Linear(config.n_embd, config.patch_size * config.n_channels)
         if config.n_labels > 0:
             self.class_head = nn.Linear(config.n_embd, config.n_labels)
-            self.head_type = config.head_type
-        else:
-            self.head_type = 'pretrain'
+        self.head_type = config.head_type
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
         self.position_embedding = config.position_embedding
@@ -107,21 +107,26 @@ class PatchGPT(PreTrainedModel):
     def forward(self, x, labels=None, attention_mask=None, static=None):
         # x is (B, T, channels), mask is also (B, T, channels)
         patch_x = self.patchify(x)  # (B, new T (num patches), patch_size * channels)
-        if self.head_type == 'pretrain':
-            x = self.patch_embedding(patch_x[:, :-1, :])  # (B, T - 1, C)
-        else:
-            x = self.patch_embedding(patch_x)  # (B, T, C)
+        x = self.patch_embedding(patch_x)  # (B, T, C)
+        if self.head_type == 'pretrain_lm':
+            patch_x = patch_x[:, 1:, :]
+            x = x[:, :-1, :]
+        B, T, _ = x.shape  # Get new T
         if attention_mask is not None:
             patch_mask = self.patchify(attention_mask)
             patch_mask = torch.count_nonzero(patch_mask, -1) > 0
             patch_mask = patch_mask.to(torch.int32)
-            if self.head_type == 'pretrain':
+            if self.head_type == 'pretrain_lm':
                 patch_mask = patch_mask[:, :-1]
         else:
-            patch_mask = None
-        B, T, _ = x.shape  # Get new T
+            patch_mask = torch.ones((B, T)).to(x.device)
+        patch_indices = patch_mask.nonzero()
+        if self.random_mask_ratio > 0:
+            patch_indices = patch_indices[
+                torch.randperm(patch_indices.size(0))[:int(patch_indices.size(0) * self.random_mask_ratio)]]
+            patch_mask[patch_indices[:, 0], patch_indices[:, 1]] = 0
         if self.position_embedding == 'absolute':
-            pos_emb = self.position_embedding_table(torch.arange(T, device=x.device))  # (T,C)
+            pos_emb = self.position_embedding_table(torch.arange(T, device=x.device))  # (T, C)
             x = x + pos_emb  # (B,T,C)
         if static is not None:
             static = static[:, None, :]
@@ -130,14 +135,14 @@ class PatchGPT(PreTrainedModel):
         for block in self.blocks:
             x = block(x, attention_mask=patch_mask)  # (B, T, C)
         x = self.ln_f(x)  # (B, T, C)
-        if self.head_type == 'pretrain':
+        if self.head_type in ['pretrain_lm', 'pretrain_mask']:
             logits = None
             patch_pred = self.prediction_head(x)  # (B, T, patch_size * channels)
-            loss = F.mse_loss(patch_pred, patch_x[:, 1:, :], reduction='none')
-            loss = loss.mean(dim=-1) * patch_mask
-            loss = loss.sum() / torch.sum(patch_mask)
+            loss = F.mse_loss(patch_pred, patch_x, reduction='none')
+            loss = loss.mean(dim=-1)
+            loss = loss[patch_indices[:, 0], patch_indices[:, 1]].mean()
         else:
-            logits = self.class_head(x)  # (B,mT, num_labels)
+            logits = self.class_head(x)  # (B, T, num_labels)
             patch_pred = None
             B, T, C = logits.shape
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
