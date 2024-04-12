@@ -6,7 +6,6 @@ import json
 import argparse
 import time
 import glob
-import multiprocessing
 
 from tokenizer import LCTokenizer
 from gaussian_process import fit_2d_gp
@@ -396,7 +395,6 @@ def process(args):
     elif args.format == "gp_sample":
 
         for file in glob.glob(os.path.join("plasticc", args.file_pattern)):
-            print(file)
             df = pd.read_csv(file)
             filename, ext = file.split(".", 1)
             if "train" in file:
