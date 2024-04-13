@@ -299,10 +299,10 @@ def process(args):
     df_test_meta = pd.read_csv("plasticc/plasticc_test_metadata.csv.gz")
 
     config["format"] = args.format
-    config["sn"] = args.sn
     config["augment_factor"] = args.augment_factor
 
     if "tokens" in args.format:
+        config["sn"] = args.sn
         config["num_time_bins"] = args.num_time_bins
         config["num_bins"] = args.num_bins
         config["min_flux"] = args.min_flux
@@ -320,6 +320,7 @@ def process(args):
         elif args.transform == "linear":
             transform = lambda x: x
             inverse_transform = lambda x: x
+        config["transform"] = args.transform
 
         tokenizer = LCTokenizer(config["min_flux"], config["max_flux"], config["num_bins"], config["max_delta_time"],
                                 config["num_time_bins"], bands=config["bands"],

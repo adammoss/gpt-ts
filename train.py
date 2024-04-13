@@ -281,6 +281,7 @@ def main(args):
         model_config["position_embedding"] = position_embedding
         if model_type == "patch":
             model_config["patch_size"] = patch_size
+            model_config["random_mask_ratio"] = random_mask_ratio
 
     training_config = {
         "task": args.task,

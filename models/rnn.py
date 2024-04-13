@@ -56,13 +56,15 @@ class AutoRegressiveRNN(nn.Module):
 
         # Embedding layer
         self.embedding = nn.Embedding(config.vocab_size, config.n_embd)
+
         # RNN layer
         self.rnn = nn.GRU(config.n_embd, config.n_hidden, config.n_layer, batch_first=True, dropout=config.dropout)
-        # Fully connected layer that outputs the predictions
+
+        self.head_type = config.head_type
         self.lm_head = nn.Linear(config.n_hidden, config.vocab_size)
         if config.n_labels > 0:
             self.class_head = nn.Linear(config.n_hidden, config.n_labels)
-        self.head_type = config.head_type
+
         if config.n_static > 0:
             self.static = nn.Linear(config.n_static, config.n_embd)
 
