@@ -539,8 +539,8 @@ def main(args):
                     last_correct += torch.sum(last_labels == torch.argmax(last_logits, dim=-1))
                     last_total += X.shape[0]
             out['%s/loss' % split] = losses.mean()
-            out['%s/last_loss' % split] = last_losses.mean()
             if total > 0:
+                out['%s/last_loss' % split] = last_losses.mean()
                 out['%s/accuracy' % split] = (correct / total).item()
                 out['%s/last_accuracy' % split] = last_correct.item() / last_total
         model.train()
