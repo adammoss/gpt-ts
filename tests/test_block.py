@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 
-class TestCasualBlock(unittest.TestCase):
+class TestBlock(unittest.TestCase):
 
     def setUp(self):
         # Setup process before each test
@@ -34,14 +34,14 @@ class TestCasualBlock(unittest.TestCase):
         x = torch.rand((1, self.sequence_length, self.n_embd))  # input tensor of shape [batch, seq_length, n_embd]
 
         # Positive case: when attention_mask is None
-        ##output = self.block.forward(x)
-        ##self.assertEqual(output.shape, x.shape)
+        output = self.block.forward(x)
+        self.assertEqual(output.shape, x.shape)
 
         # Negative case: when attention_mask is not None (all attended so outputs should be the same)
-        ##attention_mask = torch.ones((1, self.sequence_length))  # attention mask of shape [batch, seq_length]
-        ##output_mask = self.block.forward(x, attention_mask)
-        ##self.assertEqual(output.shape, x.shape)
-        ##self.assertTrue(torch.allclose(output, output_mask))
+        attention_mask = torch.ones((1, self.sequence_length))  # attention mask of shape [batch, seq_length]
+        output_mask = self.block.forward(x, attention_mask)
+        self.assertEqual(output.shape, x.shape)
+        self.assertTrue(torch.allclose(output, output_mask))
 
         # Check attended output is same when non-attended tokens change (=0)
         attention_mask = torch.ones((1, self.sequence_length))  # attention mask of shape [batch, seq_length]
@@ -54,5 +54,22 @@ class TestCasualBlock(unittest.TestCase):
         self.assertTrue(torch.allclose(output[0, int(self.sequence_length / 2):, :],
                                        output_x0[0, int(self.sequence_length / 2):, :]))
 
-        if __name__ == "__main__":
-            unittest.main()
+
+class TestCasualBlock(TestBlock):
+
+    def setUp(self):
+        # Setup process before each test
+        self.n_embd = 2
+        self.n_head = 1
+        self.n_positions = 256
+        self.sequence_length = 4
+        self.position_embedding = None
+        self.is_causal = True
+        self.block = gpt.Block(self.n_embd, self.n_head, self.n_positions, position_embedding=self.position_embedding,
+                               is_causal=self.is_causal)
+        self.block.eval()
+
+
+
+if __name__ == "__main__":
+    unittest.main()
