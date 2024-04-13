@@ -256,6 +256,12 @@ def main(args):
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
 
+    if args.hub_dir is not None:
+        hub_dir = args.hub_dir
+    else:
+        hub_dir = 'adammoss/%s-%s' % (model_type, args.task)
+    hub_dir = hub_dir.replace('_', '-')
+
     n_static = len(dataset_config["static_features"])
     n_labels = dataset_config["num_labels"]
     n_channels = len(dataset_config["bands"])
@@ -575,7 +581,7 @@ def main(args):
                     else:
                         torch.save(model.state_dict(), '%s/best_weights.pt' % dataset)
                     if args.push_to_hub:
-                        model.push_to_hub('adammoss/%s' % model_type, commit_message=f"Iteration {iter}", blocking=False)
+                        model.push_to_hub(hub_dir, commit_message=f"Iteration {iter}", blocking=False)
             if wandb_log:
                 wandb.log(metrics)
             if 'train/accuracy' in metrics:

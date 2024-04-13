@@ -64,6 +64,18 @@ class Patchify(nn.Module):
         return self.to_patches(x)  # (B, num patches, patch size * C)
 
 
+class UnPatchify(nn.Module):
+    def __init__(self, patch_size):
+        super().__init__()
+        self.patch_size = patch_size
+        self.from_patches = Rearrange('b n (p c) -> b c (n p)', p=patch_size)
+
+    def forward(self, x):
+        B, T, C = x.shape  # (B, num patches, patch size * C)
+        x = self.from_patches(x)  # (B, C, T)
+        return torch.transpose(x, 1, 2)  # (B, T, C)
+
+
 class PatchGPT(PreTrainedModel):
     config_class = PatchGPTConfig
 
@@ -74,6 +86,7 @@ class PatchGPT(PreTrainedModel):
         patch_dim = config.n_channels * config.patch_size
 
         self.patchify = Patchify(config.patch_size)
+        self.unpatchify = UnPatchify(config.patch_size)
 
         self.patch_embedding = nn.Sequential(
             nn.LayerNorm(patch_dim),
@@ -155,15 +168,17 @@ class PatchGPT(PreTrainedModel):
         if self.head_type in ['pretrain_lm', 'pretrain_mask']:
             logits = None
             patch_pred = self.prediction_head(x)  # (B, T, patch_size * channels)
+            x_pred = self.unpatchify(patch_pred)
             loss = F.mse_loss(patch_pred, patch_x, reduction='none')
             loss = loss.mean(dim=-1)
             loss = loss[patch_indices[:, 0], patch_indices[:, 1]].mean()
         else:
             logits = self.class_head(x)  # (B, T, num_labels)
             patch_pred = None
+            x_pred = None
             B, T, C = logits.shape
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
 
         # For compat with Hugging face output
         return SimpleNamespace(logits=logits, patch_pred=patch_pred, loss=loss,
-                               patch_mask=patch_mask)
+                               patch_mask=patch_mask, x_pred=x_pred)
