@@ -4,7 +4,7 @@ import torch
 from torch import nn
 
 
-class TestBlock(unittest.TestCase):
+class TestCasualBlock(unittest.TestCase):
 
     def setUp(self):
         # Setup process before each test
@@ -12,7 +12,7 @@ class TestBlock(unittest.TestCase):
         self.n_head = 2
         self.n_positions = 1024
         self.position_embedding = None
-        self.is_causal = False
+        self.is_causal = True
         self.block = gpt.Block(self.n_embd, self.n_head, self.n_positions, position_embedding=self.position_embedding,
                                is_causal=self.is_causal)
 
@@ -47,6 +47,19 @@ class TestBlock(unittest.TestCase):
 
         self.assertTrue(torch.allclose(output[:, :256, :], output_mask[:, :256, :]))
         self.assertFalse(torch.allclose(output[:, 256:, :], output_mask[:, 256:, :]))
+
+
+class TestBlock(TestCasualBlock):
+
+    def setUp(self):
+        # Setup process before each test
+        self.n_embd = 128
+        self.n_head = 2
+        self.n_positions = 1024
+        self.position_embedding = None
+        self.is_causal = False
+        self.block = gpt.Block(self.n_embd, self.n_head, self.n_positions, position_embedding=self.position_embedding,
+                               is_causal=self.is_causal)
 
 
 if __name__ == "__main__":
