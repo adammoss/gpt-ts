@@ -209,6 +209,11 @@ def parse_args():
         default=False,
         action="store_true",
     )
+    parser.add_argument(
+        "--hub_dir",
+        type=str,
+        default=None,
+    )
     return parser.parse_args()
 
 
