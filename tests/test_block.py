@@ -43,7 +43,7 @@ class TestBlock(unittest.TestCase):
         self.assertEqual(output.shape, x.shape)
         self.assertTrue(torch.allclose(output, output_mask))
 
-        # Check attended output is same when non-attended tokens change (=0)
+        # Check attended output is same when non-attended tokens change (mask=0)
         attention_mask = torch.ones((1, self.sequence_length))  # attention mask of shape [batch, seq_length]
         attention_mask[0, int(self.sequence_length / 4):int(self.sequence_length / 2)] = 0
         output = self.block.forward(x, attention_mask)
@@ -68,7 +68,6 @@ class TestCasualBlock(TestBlock):
         self.block = gpt.Block(self.n_embd, self.n_head, self.n_positions, position_embedding=self.position_embedding,
                                is_causal=self.is_causal)
         self.block.eval()
-
 
 
 if __name__ == "__main__":
