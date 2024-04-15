@@ -218,4 +218,4 @@ class GPTModel(PreTrainedModel):
             loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
 
         # For compat with Hugging face output
-        return SimpleNamespace(logits=logits, loss=loss)
+        return SimpleNamespace(logits=logits, loss=loss, labels=labels, mask=attention_mask)

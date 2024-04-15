@@ -7,7 +7,7 @@ from models.gpt import GPTModelConfig, GPTModel
 from models.rnn import RNNConfig, AutoRegressiveRNN
 from models.patchgpt import PatchGPTConfig, PatchGPT
 from transformers import GPT2Config, GPT2LMHeadModel
-from utils import randint
+from utils import get_last_in_sequence, get_random_masked_token
 
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -331,6 +331,8 @@ def main(args):
     elif model_type == 'patch':
         if args.hub_from_pretrained is not None:
             model = PatchGPT.from_pretrained(args.hub_from_pretrained)
+            if args.task == 'finetune_class':
+                model.head_type = 'classification'
         else:
             if args.task in ["pretrain_lm", "finetune_lm"]:
                 head_type = 'pretrain_lm'
@@ -544,19 +546,19 @@ def main(args):
                     output = model(X, labels=Y, attention_mask=attention_mask, static=static)
                 losses[k] = output.loss.item()
                 if output.logits is not None:
-                    if attention_mask is not None:
-                        B, T, C = output.logits.shape
-                        seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+                    B, T, C = output.logits.shape
+                    if output.mask is not None:
+                        seqlens_in_batch = get_last_in_sequence(output.mask)
                         last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
-                        last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
+                        last_labels = output.labels[torch.arange(B), seqlens_in_batch - 1]
                     else:
                         last_logits = output.logits[torch.arange(B), -1]
-                        last_labels = Y[torch.arange(B), -1]
+                        last_labels = output.labels[torch.arange(B), -1]
                     last_losses[k] = F.cross_entropy(last_logits, last_labels)
-                    correct += torch.sum(Y == torch.argmax(output.logits, dim=-1))
+                    correct += torch.sum(output.labels == torch.argmax(output.logits, dim=-1))
                     total += torch.sum(attention_mask)
                     last_correct += torch.sum(last_labels == torch.argmax(last_logits, dim=-1))
-                    last_total += X.shape[0]
+                    last_total += B
             out['%s/loss' % split] = losses.mean()
             if total > 0:
                 out['%s/last_loss' % split] = last_losses.mean()
@@ -616,17 +618,17 @@ def main(args):
 
         optimizer.zero_grad(set_to_none=True)
         if "class" in args.task:
+            B, T, C = output.logits.shape
             if attention_mask is not None:
-                B, T, C = output.logits.shape
-                seqlens_in_batch = attention_mask.sum(dim=-1, dtype=torch.int32)
+                seqlens_in_batch = get_last_in_sequence(output.mask)
                 last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
-                last_labels = Y[torch.arange(B), seqlens_in_batch - 1]
-                offsets = randint(0, seqlens_in_batch, device=device)
+                last_labels = output.labels[torch.arange(B), seqlens_in_batch - 1]
+                offsets = get_random_masked_token(output.mask)
                 sliced_logits = output.logits[torch.arange(B), offsets]
-                sliced_labels = Y[torch.arange(B), offsets]
+                sliced_labels = output.labels[torch.arange(B), offsets]
             else:
                 last_logits = output.logits[torch.arange(B), -1]
-                last_labels = Y[torch.arange(B), -1]
+                last_labels = output.labels[torch.arange(B), -1]
             if args.last_label_only:
                 loss = F.cross_entropy(last_logits, last_labels, label_smoothing=args.label_smoothing)
             else:

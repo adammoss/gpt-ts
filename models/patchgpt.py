@@ -169,18 +169,28 @@ class PatchGPT(PreTrainedModel):
 
         if self.head_type in ['pretrain_lm', 'pretrain_mask']:
             logits = None
+            patch_labels = None
             patch_pred = self.prediction_head(x)  # (B, T, patch_size * channels)
             x_pred = self.unpatchify(patch_pred)
             loss = F.mse_loss(patch_pred, patch_x, reduction='none')
             loss = loss.mean(dim=-1)
             loss = loss[patch_indices[:, 0], patch_indices[:, 1]].mean()
-        else:
-            logits = self.class_head(x)  # (B, T, num_labels)
+        elif self.head_type == 'classification' and labels is not None:
             patch_pred = None
             x_pred = None
+            logits = self.class_head(x)  # (B, T, num_labels)
+            patch_labels = labels.unsqueeze(-1).expand(B, T).clone()
+            patch_indices = patch_mask.nonzero()
+            patch_labels[patch_indices[:, 0], patch_indices[:, 1]] = -100
             B, T, C = logits.shape
-            loss = F.cross_entropy(logits.view(B * T, C), labels.view(B * T))
+            loss = F.cross_entropy(logits.view(B * T, C), patch_labels.view(B * T))
+        else:
+            logits = None
+            loss = None
+            patch_labels = None
+            patch_pred = None
+            x_pred = None
 
         # For compat with Hugging face output
-        return SimpleNamespace(logits=logits, patch_pred=patch_pred, loss=loss,
-                               patch_mask=patch_mask, x_pred=x_pred)
+        return SimpleNamespace(logits=logits, loss=loss, labels=patch_labels,
+                               patch_pred=patch_pred, mask=patch_mask, x_pred=x_pred)
