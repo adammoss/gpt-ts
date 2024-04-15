@@ -569,6 +569,9 @@ def main(args):
         metrics = estimate_loss(1)
         print(metrics)
 
+    metrics = estimate_loss(1)
+    print(metrics)
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
     if wandb_log:
