@@ -138,7 +138,8 @@ class PatchGPT(PreTrainedModel):
 
         if attention_mask is not None:
             patch_mask = self.patchify(attention_mask)
-            patch_mask = torch.count_nonzero(patch_mask, -1) > 0
+            # Check if any valid tokens in channel dimension
+            patch_mask = torch.count_nonzero(patch_mask, -1) > 0  # Now (B, T)
             patch_mask = patch_mask.to(torch.int32)
             if self.head_type == 'pretrain_lm':
                 patch_mask = patch_mask[:, :-1]
@@ -149,6 +150,7 @@ class PatchGPT(PreTrainedModel):
         if self.random_mask_ratio > 0:
             patch_indices = patch_indices[
                 torch.randperm(patch_indices.size(0))[:int(patch_indices.size(0) * self.random_mask_ratio)]]
+            # These tokens are now not attended to
             patch_mask[patch_indices[:, 0], patch_indices[:, 1]] = 0
 
         if self.position_embedding == 'absolute':

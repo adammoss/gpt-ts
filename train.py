@@ -210,7 +210,12 @@ def parse_args():
         action="store_true",
     )
     parser.add_argument(
-        "--hub_dir",
+        "--hub_repo",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--hub_from_pretrained",
         type=str,
         default=None,
     )
@@ -261,11 +266,11 @@ def main(args):
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
 
-    if args.hub_dir is not None:
-        hub_dir = args.hub_dir
+    if args.hub_repo is not None:
+        hub_repo = args.hub_repo
     else:
-        hub_dir = 'adammoss/%s-%s' % (model_type, args.task)
-    hub_dir = hub_dir.replace('_', '-')
+        hub_repo = 'adammoss/%s-%s' % (model_type, args.task)
+    hub_repo = hub_repo.replace('_', '-')
 
     n_static = len(dataset_config["static_features"])
     n_labels = dataset_config["num_labels"]
@@ -324,17 +329,20 @@ def main(args):
                            dropout=dropout, n_static=n_static, n_labels=n_labels, head_type=head_type)
         model = AutoRegressiveRNN(config=config)
     elif model_type == 'patch':
-        if args.task in ["pretrain_lm", "finetune_lm"]:
-            head_type = 'pretrain_lm'
-        elif args.task in ["pretrain_mask"]:
-            head_type = 'pretrain_mask'
+        if args.hub_from_pretrained is not None:
+            model = PatchGPT.from_pretrained(args.hub_from_pretrained)
         else:
-            head_type = 'classification'
-        config = PatchGPTConfig(patch_size=patch_size, n_channels=n_channels, n_head=n_head, n_embd=n_embd,
-                                n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
-                                n_labels=n_labels, position_embedding=position_embedding, head_type=head_type,
-                                random_mask_ratio=random_mask_ratio)
-        model = PatchGPT(config)
+            if args.task in ["pretrain_lm", "finetune_lm"]:
+                head_type = 'pretrain_lm'
+            elif args.task in ["pretrain_mask"]:
+                head_type = 'pretrain_mask'
+            else:
+                head_type = 'classification'
+            config = PatchGPTConfig(patch_size=patch_size, n_channels=n_channels, n_head=n_head, n_embd=n_embd,
+                                    n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
+                                    n_labels=n_labels, position_embedding=position_embedding, head_type=head_type,
+                                    random_mask_ratio=random_mask_ratio)
+            model = PatchGPT(config)
     elif model_type == 'hf_gpt2':
         config = GPT2Config(vocab_size=vocab_size, n_layer=n_layer, n_embd=n_embd, n_head=n_head,
                             n_positions=n_positions)
@@ -558,7 +566,7 @@ def main(args):
         return out
 
     if device == 'cpu':
-        metrics = estimate_loss(2)
+        metrics = estimate_loss(1)
         print(metrics)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
@@ -586,7 +594,7 @@ def main(args):
                     else:
                         torch.save(model.state_dict(), '%s/best_weights.pt' % dataset)
                     if args.push_to_hub:
-                        model.push_to_hub(hub_dir, commit_message=f"Iteration {iter}", blocking=False)
+                        model.push_to_hub(hub_repo, commit_message=f"Iteration {iter}", blocking=False)
             if wandb_log:
                 wandb.log(metrics)
             if 'train/accuracy' in metrics:
