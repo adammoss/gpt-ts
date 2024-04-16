@@ -7,7 +7,7 @@ from models.gpt import GPTModelConfig, GPTModel
 from models.rnn import RNNConfig, AutoRegressiveRNN
 from models.patchgpt import PatchGPTConfig, PatchGPT
 from transformers import GPT2Config, GPT2LMHeadModel
-from utils import get_last_in_sequence, get_random_masked_token
+from utils import get_last_masked_index, get_random_masked_index
 
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -548,7 +548,7 @@ def main(args):
                 if output.logits is not None:
                     B, T, C = output.logits.shape
                     if output.mask is not None:
-                        seqlens_in_batch = get_last_in_sequence(output.mask)
+                        seqlens_in_batch = get_last_masked_index(output.mask)
                         last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
                         last_labels = output.labels[torch.arange(B), seqlens_in_batch - 1]
                     else:
@@ -556,7 +556,7 @@ def main(args):
                         last_labels = output.labels[torch.arange(B), -1]
                     last_losses[k] = F.cross_entropy(last_logits, last_labels)
                     correct += torch.sum(output.labels == torch.argmax(output.logits, dim=-1))
-                    total += torch.sum(attention_mask)
+                    total += torch.sum(output.mask)
                     last_correct += torch.sum(last_labels == torch.argmax(last_logits, dim=-1))
                     last_total += B
             out['%s/loss' % split] = losses.mean()
@@ -620,10 +620,10 @@ def main(args):
         if "class" in args.task:
             B, T, C = output.logits.shape
             if attention_mask is not None:
-                seqlens_in_batch = get_last_in_sequence(output.mask)
+                seqlens_in_batch = get_last_masked_index(output.mask)
                 last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
                 last_labels = output.labels[torch.arange(B), seqlens_in_batch - 1]
-                offsets = get_random_masked_token(output.mask)
+                offsets = get_random_masked_index(output.mask)
                 sliced_logits = output.logits[torch.arange(B), offsets]
                 sliced_labels = output.labels[torch.arange(B), offsets]
             else:

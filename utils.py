@@ -34,13 +34,13 @@ def randint(low, high=None, size=None, device=None):
     return torch.randint(2 ** 63 - 1, size=size, device=device) % (high - low) + low
 
 
-def get_last_in_sequence(mask):
+def get_last_masked_index(mask):
     # Get the last index where the mask = 1 (observed)
     B, T = mask.shape
     return T - torch.argmax(torch.flip((mask == 1).long(), [1]), 1) - 1
 
 
-def get_random_masked_token(mask):
+def get_random_masked_index(mask):
     return torch.squeeze(torch.multinomial(mask.float(), 1))
 
 
