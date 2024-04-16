@@ -180,7 +180,8 @@ class PatchGPT(PreTrainedModel):
             x_pred = None
             logits = self.class_head(x)  # (B, T, num_labels)
             patch_labels = labels.unsqueeze(-1).expand(B, T).clone()
-            patch_indices = patch_mask.nonzero()
+            # Set non-attended loss to be ignored
+            patch_indices = (patch_mask == 0).nonzero()
             patch_labels[patch_indices[:, 0], patch_indices[:, 1]] = -100
             B, T, C = logits.shape
             loss = F.cross_entropy(logits.view(B * T, C), patch_labels.view(B * T))
