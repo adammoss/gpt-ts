@@ -548,9 +548,9 @@ def main(args):
                 if output.logits is not None:
                     B, T, C = output.logits.shape
                     if output.mask is not None:
-                        seqlens_in_batch = get_last_masked_index(output.mask)
-                        last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
-                        last_labels = output.labels[torch.arange(B), seqlens_in_batch - 1]
+                        seqlens_index_batch = get_last_masked_index(output.mask)
+                        last_logits = output.logits[torch.arange(B), seqlens_index_batch]
+                        last_labels = output.labels[torch.arange(B), seqlens_index_batch]
                     else:
                         last_logits = output.logits[torch.arange(B), -1]
                         last_labels = output.labels[torch.arange(B), -1]
@@ -619,10 +619,10 @@ def main(args):
         optimizer.zero_grad(set_to_none=True)
         if "class" in args.task:
             B, T, C = output.logits.shape
-            if attention_mask is not None:
-                seqlens_in_batch = get_last_masked_index(output.mask)
-                last_logits = output.logits[torch.arange(B), seqlens_in_batch - 1]
-                last_labels = output.labels[torch.arange(B), seqlens_in_batch - 1]
+            if output.mask is not None:
+                seqlens_index_batch = get_last_masked_index(output.mask)
+                last_logits = output.logits[torch.arange(B), seqlens_index_batch]
+                last_labels = output.labels[torch.arange(B), seqlens_index_batch]
                 offsets = get_random_masked_index(output.mask)
                 sliced_logits = output.logits[torch.arange(B), offsets]
                 sliced_labels = output.labels[torch.arange(B), offsets]
