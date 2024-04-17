@@ -596,7 +596,10 @@ def main(args):
                     else:
                         torch.save(model.state_dict(), '%s/best_weights.pt' % dataset)
                     if args.push_to_hub:
-                        model.push_to_hub(hub_repo, commit_message=f"Iteration {iter}", blocking=False)
+                        try:
+                            model.push_to_hub(hub_repo, commit_message=f"Iteration {iter}", blocking=False)
+                        except:
+                            pass
             if wandb_log:
                 wandb.log(metrics)
             if 'train/accuracy' in metrics:
