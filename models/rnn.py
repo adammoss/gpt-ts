@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
+from models.gpt import GenerateMixin
+
 from transformers import PretrainedConfig, PreTrainedModel
 
 from types import SimpleNamespace
@@ -36,7 +38,7 @@ class RNNConfig(PretrainedConfig):
         super().__init__(**kwargs)
 
 
-class AutoRegressiveRNN(nn.Module):
+class AutoRegressiveRNN(PreTrainedModel, GenerateMixin):
     config_class = RNNConfig
 
     def __init__(self, config: RNNConfig):
