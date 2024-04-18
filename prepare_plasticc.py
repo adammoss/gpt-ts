@@ -175,7 +175,7 @@ def parse_args():
     parser.add_argument(
         "--file_pattern",
         type=str,
-        default="plasticc_*_lightcurves_*.csv.gz",
+        default="plasticc_*_lightcurve*.csv.gz",
     )
     parser.add_argument(
         "--chunk_size",
@@ -254,12 +254,20 @@ def load_token_sequences(df_meta, df, tokenizer, augment_factor=1):
     return sequences
 
 
-def load_gp_token_sequences(df_meta, df, tokenizer):
+def load_gp_token_sequences(df_meta, df, tokenizer, max_sequences=None):
     df_meta, df = filename_or_df(df_meta, df)
     sequences = []
+    num = len(df_meta)
+    count = 0
     for i, row in df_meta.iterrows():
+        count += 1
+        if max_sequences is not None and count > max_sequences:
+            continue
+        if count % 100 == 0:
+            print("GP %s of %s" % (count, num))
         df_object = df.loc[(df["object_id"] == row["object_id"]), :]
-        resampled_df, _ = fit_2d_gp(df_object, config["pb_wavelengths"])
+        resampled_df, _, _ = fit_2d_gp(df_object, config["pb_wavelengths"], replace=True, outliers=True,
+                                       sample_interval=None)
         tokens = tokenizer.encode(resampled_df)
         if len(tokens) > 2:
             sequences.append({"x": tokens, "class": class_keys[int(row["true_target"])],
@@ -390,7 +398,6 @@ def process(args):
             print("Num test tokens: %s" % num_test_tokens)
             print("Average train tokens: %s" % (num_train_tokens / num_train_sequences))
             print("Average test tokens: %s" % (num_test_tokens / num_test_sequences))
-            print("Optimal model parameters (Chinchilla paper): %s" % int(num_train_tokens / 20))
 
     elif args.format == "gp_sample":
 
@@ -404,6 +411,19 @@ def process(args):
                 sequences = load_gp_sample_sequences(df_test_meta, df, args.gp_sample_interval,
                                                      max_sequences=args.gp_max_sequences)
             np.save("%s_gp_sample.npy" % filename, sequences)
+
+    elif args.format == "gp_tokens":
+
+        for file in glob.glob(os.path.join("plasticc", args.file_pattern)):
+            df = pd.read_csv(file)
+            filename, ext = file.split(".", 1)
+            if "train" in file:
+                sequences = load_gp_token_sequences(df_train_meta, df, tokenizer,
+                                                    max_sequences=args.gp_max_sequences)
+            else:
+                sequences = load_gp_token_sequences(df_test_meta, df, tokenizer,
+                                                    max_sequences=args.gp_max_sequences)
+            np.save("%s_gp_tokens.npy" % filename, sequences)
 
 
 if __name__ == "__main__":

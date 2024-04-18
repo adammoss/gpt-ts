@@ -106,16 +106,22 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
         obj_data.loc[:, parameter_error_column] = obj_data.loc[:, 'resampled_%s' % parameter_error_column]
         obj_data = obj_data.drop(columns=['resampled_%s' % parameter_column, 'resampled_%s' % parameter_error_column])
 
-    sampled_times = np.arange(min(obj_times), max(obj_times), sample_interval)
-    sampled_flux = []
-    sampled_mask = np.zeros((len(bands), len(sampled_times)), dtype=np.int32)
-    for i, band in enumerate(bands):
-        mask = obj_data[band_column] == band
-        band_times = obj_data[mask][time_column].values
-        sampled_mask[i, :] = (np.min(abs(band_times.reshape((-1, 1)) - sampled_times.reshape((1, -1))), axis=0) <
-                              sample_interval)
-        pred_x_data = np.vstack([sampled_times, np.ones(len(sampled_times)) * pb_wavelengths[band]]).T
-        sampled_flux.append(gp(pred_x_data, return_var=True))
-    sampled_flux = np.array(sampled_flux, dtype=np.float32)
+    if sample_interval is None:
 
-    return obj_data, (sampled_times, sampled_flux[:, 0, :], sampled_flux[:, 1, :], sampled_mask), results.success
+        return obj_data, None, results.success
+
+    else:
+
+        sampled_times = np.arange(min(obj_times), max(obj_times), sample_interval)
+        sampled_flux = []
+        sampled_mask = np.zeros((len(bands), len(sampled_times)), dtype=np.int32)
+        for i, band in enumerate(bands):
+            mask = obj_data[band_column] == band
+            band_times = obj_data[mask][time_column].values
+            sampled_mask[i, :] = (np.min(abs(band_times.reshape((-1, 1)) - sampled_times.reshape((1, -1))), axis=0) <
+                                  sample_interval)
+            pred_x_data = np.vstack([sampled_times, np.ones(len(sampled_times)) * pb_wavelengths[band]]).T
+            sampled_flux.append(gp(pred_x_data, return_var=True))
+        sampled_flux = np.array(sampled_flux, dtype=np.float32)
+
+        return obj_data, (sampled_times, sampled_flux[:, 0, :], sampled_flux[:, 1, :], sampled_mask), results.success

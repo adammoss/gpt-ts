@@ -312,14 +312,19 @@ def main(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     if model_type == 'gpt':
-        if args.task in ["pretrain_lm", "finetune_lm"]:
-            head_type = 'lm'
+        if args.hub_from_pretrained is not None:
+            model = GPTModel.from_pretrained(args.hub_from_pretrained)
+            if args.task == 'finetune_class':
+                model.head_type = 'classification'
         else:
-            head_type = 'classification'
-        config = GPTModelConfig(vocab_size=vocab_size, n_head=n_head, n_embd=n_embd,
-                                n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
-                                n_labels=n_labels, position_embedding=position_embedding, head_type=head_type)
-        model = GPTModel(config=config)
+            if args.task in ["pretrain_lm", "finetune_lm"]:
+                head_type = 'lm'
+            else:
+                head_type = 'classification'
+            config = GPTModelConfig(vocab_size=vocab_size, n_head=n_head, n_embd=n_embd,
+                                    n_positions=n_positions, n_layer=n_layer, dropout=dropout, n_static=n_static,
+                                    n_labels=n_labels, position_embedding=position_embedding, head_type=head_type)
+            model = GPTModel(config=config)
     elif model_type == 'rnn':
         if args.task in ["pretrain_lm", "finetune_lm"]:
             head_type = 'lm'
