@@ -1,7 +1,7 @@
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.nn import functional as F
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, PeftModel, PeftConfig
 
 from models.gpt import GPTModelConfig, GPTModel
 from models.rnn import RNNConfig, AutoRegressiveRNN
@@ -39,11 +39,6 @@ def parse_args():
     )
     parser.add_argument(
         "--base_model_weights",
-        type=str,
-        default=None,
-    )
-    parser.add_argument(
-        "--peft_model_weights",
         type=str,
         default=None,
     )
@@ -384,9 +379,6 @@ def main(args):
         model.print_trainable_parameters()
         model_config["lora_rank"] = args.lora_rank
         model_config["lora_dropout"] = args.lora_dropout
-
-    if args.peft_model_weights is not None:
-        model.load_state_dict(torch.load(args.peft_model_weights, map_location=torch.device(device)))
 
     if args.output_dir is not None:
         with open(os.path.join(args.output_dir, "model_config.json"), "w") as f:
