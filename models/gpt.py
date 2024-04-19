@@ -176,6 +176,7 @@ class GenerateMixin:
             idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
             # append sampled index to the running sequence
             idx = torch.cat((idx, idx_next), dim=1)  # (B, T+1)
+        self.train()
         return idx
 
 

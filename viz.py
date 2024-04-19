@@ -1,9 +1,15 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+try:
+    import scienceplots
+    plt.style.use('science')
+except ImportError:
+    pass
+
 
 def plot_lightcurve(dfs, bands=None, time_column='mjd', band_column='passband', parameter_column='flux',
-                    parameter_error_column='flux_err', colors=None, min_sn=0):
+                    parameter_error_column='flux_err', colors=None, min_sn=0, titles=None):
     if not isinstance(dfs, list):
         dfs = [dfs]
     if not isinstance(parameter_column, list):
@@ -12,6 +18,8 @@ def plot_lightcurve(dfs, bands=None, time_column='mjd', band_column='passband', 
         parameter_error_column = [parameter_error_column] * len(dfs)
     if not isinstance(min_sn, list):
         min_sn = [min_sn] * len(dfs)
+    if titles is not None and not isinstance(titles, list):
+        titles = [titles] * len(dfs)
     if bands is None:
         bands = []
         for df in dfs:
@@ -45,8 +53,14 @@ def plot_lightcurve(dfs, bands=None, time_column='mjd', band_column='passband', 
         if len(dfs) == 1:
             axes.set_xlabel('Time (days)')
             axes.set_ylabel('Flux')
+            if titles is not None:
+                axes.set_title(titles[0])
         else:
             axes[i].set_xlabel('Time (days)')
-            axes[i].set_ylabel('Flux')
+            if i == 0:
+                axes[i].set_ylabel('Flux')
             axes[i].grid()
+            if titles is not None:
+                axes[i].set_title(titles[i])
+    plt.subplots_adjust(wspace=0, hspace=0)
     return axes
