@@ -83,6 +83,7 @@ def fit_2d_gp(df, pb_wavelengths, subtract_background=True, time_column='mjd', b
     else:
         # Fit failed. Print out a warning, and use the initial guesses for fit
         # parameters.
+        print(obj_data)
         obj = obj_data["object_id"][0]
         logger.warning("GP fit failed for {}! Using guessed GP parameters.".format(obj))
         gp.set_parameter_vector(default_gp_param)

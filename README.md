@@ -101,3 +101,14 @@ Questions
 ```
 python prepare_plasticc.py process --format gp_tokens --token_window_size 1 --gp_max_sequences 10000
 ```
+
+### Pre-training 
+
+Pre-train on next token prediction. LLM scaling suggests model size of ~ 10m parameters. 
+
+```
+python train.py --task pretrain_lm --batch_size 128 --dataset_config plasticc/dataset_config_gp_tokens.json 
+--train_file plasticc/plasticc_train_lightcurves_gp_tokens.npy 
+--train_file plasticc/plasticc_test_lightcurves_*_gp_tokens.npy --logger wandb --push_to_hub 
+--hub_repo "gpt-pretrain-lm-gp"
+```
