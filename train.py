@@ -601,7 +601,7 @@ def main(args):
                 wandb.log(metrics)
             if 'train/accuracy' in metrics:
                 print(
-                    f"step {iter}/{max_iters}: train loss {metrics['train/loss']:.4f}, train accuracy {metrics['train/accuracy']:.4f}, val loss {metrics['val/loss']:.4f}, val accuracy {metrics['val/accuracy']:.4f}")
+                    f"step {iter}/{max_iters}: train loss {metrics['train/loss']:.4f}, train last loss {metrics['train/last_loss']:.4f}, train accuracy {metrics['train/accuracy']:.4f}, val loss {metrics['val/loss']:.4f}, val last loss {metrics['val/last_loss']:.4f}, val accuracy {metrics['val/accuracy']:.4f}")
             else:
                 print(
                     f"step {iter}/{max_iters}: train loss {metrics['train/loss']:.4f}, val loss {metrics['val/loss']:.4f}")

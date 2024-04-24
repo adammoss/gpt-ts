@@ -65,17 +65,17 @@ The below graph shows the validation loss for a token window of 1.
 
 ![Token based pretraining validation loss](token_pretraining_w1_val_loss.png)
 
-### Fine tuning 
+### Fine-tuning 
 
 Representative training on ~7848 samples. 
 
 ```
 python train.py --task finetune_class --batch_size 128 --dataset_config plasticc/dataset_config_tokens.json 
---train_file plasticc/train_tokens.npy --train_file plasticc/test_tokens.npy --logger wandb --push_to_hub 
---hub_from_pretrained "adammoss/gpt-pretrain-lm" --val_fraction 0.99775 --lora_rank 4 --lora_dropout
+--train_file plasticc/train_tokens.npy --train_file plasticc/test_tokens.npy --logger wandb
+--hub_from_pretrained "adammoss/gpt-pretrain-lm" --val_fraction 0.99775 --lora_rank 4 --lora_dropout 0.1
 ```
 
-The below graph shows the validation loss, reaching a minimum of around 0.43. Interestingly, the loss just on the last token is slightly higher (~0.5). 
+The below graph shows the validation loss, reaching a minimum of around 0.43. The loss just on the last token is slightly higher (~0.5). Suspect this is due to the total loss being dominated by longer sequences, which are more accurate.
 
 ![Token based fine-tuning validation loss](token_finetuning_w1_rep_val_loss.png)
 
@@ -83,17 +83,16 @@ Original training
 
 ```
 python train.py --task finetune_class --batch_size 128 --dataset_config plasticc/dataset_config_tokens.json 
---train_file plasticc/train_tokens.npy --val_file plasticc/test_tokens.npy --logger wandb --push_to_hub 
---hub_from_pretrained "adammoss/gpt-pretrain-lm"
+--train_file plasticc/train_tokens.npy --val_file plasticc/test_tokens.npy --logger wandb
+--hub_from_pretrained "adammoss/gpt-pretrain-lm" --lora_rank 4 --lora_dropout 0.1
 ```
 
-The below graph shows the validation loss, reaching a minimum of around 0.59. Interestingly, the loss just on the last token is higher (~0.85).
+The below graph shows the validation loss, reaching a minimum of around 0.59. The loss just on the last token is higher (~0.85).
 
 ![Token based fine-tuning validation loss](token_finetuning_w1_nonrep_val_loss.png)
 
 Questions 
 
-- Why is the last token loss higher?
 - Do low SN tokens hurt performance?
 
 ## GP tokens
@@ -111,4 +110,42 @@ python train.py --task pretrain_lm --batch_size 128 --dataset_config plasticc/da
 --train_file plasticc/plasticc_train_lightcurves_gp_tokens.npy 
 --train_file plasticc/plasticc_test_lightcurves_*_gp_tokens.npy --logger wandb --push_to_hub 
 --hub_repo "gpt-pretrain-lm-gp"
+```
+
+### Fine-tuning 
+
+Representative training on ~7848 samples. 
+
+```
+python train.py --task finetune_class --batch_size 128 --dataset_config plasticc/dataset_config_gp_tokens.json 
+--train_file plasticc/plasticc_train_lightcurves_gp_tokens.npy --train_file plasticc/plasticc_test_lightcurves_*_gp_tokens.npy 
+--logger wandb --hub_from_pretrained "adammoss/gpt-pretrain-lm" --val_fraction 0.99775 
+--lora_rank 4 --lora_dropout 0.1
+```
+
+Original training
+
+```
+python train.py --task finetune_class --batch_size 128 --dataset_config plasticc/dataset_config_gp_tokens.json 
+--train_file plasticc/plasticc_train_lightcurves_gp_tokens.npy --val_file plasticc/plasticc_test_lightcurves_*_gp_tokens.npy 
+--logger wandb  --hub_from_pretrained "adammoss/gpt-pretrain-lm" --lora_rank 4 --lora_dropout 0.1
+```
+
+## Patch
+
+### Pre-train
+
+```
+python train.py --task pretrain_mask --model patch --train_file plasticc/plasticc_test_lightcurves_*_gp_sample.npy 
+--train_file plasticc/plasticc_train_lightcurves_gp_sample.npy
+--random_mask_ratio 0.5 --dataset_config plasticc/dataset_config_gp_sample.json --transform arcsinh 
+--n_embd 384 --batch_size 256 --num_epochs 400 --logger wandb --push_to_hub --hub_repo adammoss/patch-pretrain-mask
+```
+
+### Fine-tuning
+
+```
+python train.py --task finetune_class --model patch --train_file plasticc/plasticc_test_lightcurves_*_gp_sample.npy 
+--train_file plasticc/plasticc_train_lightcurves_gp_sample.npy --dataset_config plasticc/dataset_config_gp_sample.json 
+--transform arcsinh --batch_size 256--num_epochs 400 --logger wandb
 ```
