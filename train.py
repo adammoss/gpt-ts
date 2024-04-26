@@ -383,9 +383,6 @@ def main(args):
     if args.output_dir is not None:
         with open(os.path.join(args.output_dir, "model_config.json"), "w") as f:
             json.dump(model_config, f)
-    else:
-        with open(os.path.join(dataset, "model_config.json"), "w") as f:
-            json.dump(model_config, f)
 
     train_sequences = []
     val_sequences = []
@@ -455,10 +452,6 @@ def main(args):
         np.save(os.path.join(args.output_dir, "training_ids.npy"), training_ids)
         np.save(os.path.join(args.output_dir, "val_ids.npy"), val_ids)
         np.save(os.path.join(args.output_dir, "test_ids.npy"), test_ids)
-    else:
-        np.save(os.path.join(dataset, "training_ids.npy"), training_ids)
-        np.save(os.path.join(dataset, "val_ids.npy"), val_ids)
-        np.save(os.path.join(dataset, "test_ids.npy"), test_ids)
 
     def get_batch(split, batch_size=32, shift='hf' not in model_type, repeat_class=True, self_supervised=True):
         # generate a small batch of data of inputs x and targets y
@@ -590,8 +583,6 @@ def main(args):
                 if iter > min_iters_save:
                     if args.output_dir is not None:
                         torch.save(model.state_dict(), '%s/best_weights.pt' % args.output_dir)
-                    else:
-                        torch.save(model.state_dict(), '%s/best_weights.pt' % dataset)
                     if args.push_to_hub:
                         try:
                             model.push_to_hub(hub_repo, commit_message=f"Iteration {iter}", blocking=False)
