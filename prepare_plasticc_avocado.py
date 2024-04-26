@@ -158,8 +158,9 @@ def load_token_sequences(df_meta, df, tokenizer):
             zipped += [df_meta[static_feature]]
     for row in zip(*zipped):
         object_id = row[0]
-        sequences.append({"x": tokens[object_id], "class": class_keys[int(row[1])],
-                          "static": list(row[2:]), "object_id": object_id})
+        if len(tokens[object_id]) > 2:
+            sequences.append({"x": tokens[object_id], "class": class_keys[int(row[1])],
+                              "static": list(row[2:]), "object_id": object_id})
     return sequences
 
 
