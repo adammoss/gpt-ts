@@ -175,7 +175,7 @@ def parse_args():
     parser.add_argument(
         "--file_pattern",
         type=str,
-        default="plasticc_*_lightcurve*.csv.gz",
+        default="plasticc/plasticc_*_lightcurve*.csv.gz",
     )
     parser.add_argument(
         "--chunk_size",
@@ -212,7 +212,7 @@ def download(full=True):
 
 
 def chunk(args):
-    for file in glob.glob(os.path.join("plasticc", args.file_pattern)):
+    for file in glob.glob(args.file_pattern):
         df = pd.read_csv(file)
         object_ids = np.unique(df["object_id"].values)
         num_chunks = int(len(object_ids) / args.chunk_size)
@@ -223,7 +223,7 @@ def chunk(args):
 
 
 def stats(args):
-    for file in glob.glob(os.path.join("plasticc", args.file_pattern)):
+    for file in glob.glob(args.file_pattern):
         df = pd.read_csv(file)
         print(file, np.percentile(df["flux"], [0.1, 99.9]))
 
@@ -310,6 +310,7 @@ def process(args):
     config["augment_factor"] = args.augment_factor
 
     if "tokens" in args.format:
+
         config["sn"] = args.sn
         config["num_time_bins"] = args.num_time_bins
         config["num_bins"] = args.num_bins
@@ -317,10 +318,6 @@ def process(args):
         config["max_flux"] = args.max_flux
         config["max_delta_time"] = args.max_delta_time
         config["token_window_size"] = args.token_window_size
-    elif args.format == "gp_sample":
-        config["gp_sample_interval"] = args.gp_sample_interval
-
-    if "tokens" in args.format:
 
         if args.transform == "arcsinh":
             transform = np.arcsinh
@@ -337,6 +334,9 @@ def process(args):
 
         config["vocab_size"] = tokenizer.vocab_size
 
+    elif args.format == "gp_sample":
+        config["gp_sample_interval"] = args.gp_sample_interval
+
     if args.out_suffix is not None:
         with open("plasticc/dataset_config_%s.json" % args.out_suffix, "w") as f:
             json.dump(config, f)
@@ -352,7 +352,7 @@ def process(args):
 
             train_sequences = []
             test_sequences = []
-            for i, file in enumerate(glob.glob(os.path.join("plasticc", args.file_pattern))):
+            for i, file in enumerate(glob.glob(args.file_pattern)):
                 df = pd.read_csv(file)
                 if "train" in file:
                     df_train_split_meta, df_test_split_meta = train_test_split(
@@ -373,7 +373,7 @@ def process(args):
             train_sequences = load_token_sequences(df_train_meta, df_train, tokenizer,
                                                    augment_factor=config["augment_factor"])
             test_sequences = []
-            for i, file in enumerate(glob.glob(os.path.join("plasticc", args.file_pattern))):
+            for i, file in enumerate(glob.glob(args.file_pattern)):
                 if "test" in file:
                     df = pd.read_csv(file)
                     test_sequences += load_token_sequences(df_test_meta, df, tokenizer)
@@ -391,17 +391,16 @@ def process(args):
         print("Num train sequences: %s" % num_train_sequences)
         print("Num test sequences: %s" % num_test_sequences)
 
-        if "tokens" in args.format:
-            num_train_tokens = len([x for xs in train_sequences for x in xs["x"]])
-            num_test_tokens = len([x for xs in test_sequences for x in xs["x"]])
-            print("Num train tokens: %s" % num_train_tokens)
-            print("Num test tokens: %s" % num_test_tokens)
-            print("Average train tokens: %s" % (num_train_tokens / num_train_sequences))
-            print("Average test tokens: %s" % (num_test_tokens / num_test_sequences))
+        num_train_tokens = len([x for xs in train_sequences for x in xs["x"]])
+        num_test_tokens = len([x for xs in test_sequences for x in xs["x"]])
+        print("Num train tokens: %s" % num_train_tokens)
+        print("Num test tokens: %s" % num_test_tokens)
+        print("Average train tokens: %s" % (num_train_tokens / num_train_sequences))
+        print("Average test tokens: %s" % (num_test_tokens / num_test_sequences))
 
     elif args.format == "gp_sample":
 
-        for file in glob.glob(os.path.join("plasticc", args.file_pattern)):
+        for file in glob.glob(args.file_pattern):
             df = pd.read_csv(file)
             filename, ext = file.split(".", 1)
             if "train" in file:
@@ -414,7 +413,7 @@ def process(args):
 
     elif args.format == "gp_tokens":
 
-        for file in glob.glob(os.path.join("plasticc", args.file_pattern)):
+        for file in glob.glob(args.file_pattern):
             df = pd.read_csv(file)
             filename, ext = file.split(".", 1)
             if "train" in file:

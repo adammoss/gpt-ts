@@ -73,7 +73,7 @@ class LCTokenizer:
                        df[self.parameter_error_column]):
             if row[0] != last_object_id:
                 if last_object_id is not None:
-                    object_data = np.array(object_data)
+                    object_data = np.array(object_data, dtype=object)
                     threshold = abs(object_data[:, 3]) / object_data[:, 4] > self.min_sn
                     threshold = threshold.astype(int)
                     window = np.ones(min(self.window_size, len(object_data)))
@@ -84,7 +84,7 @@ class LCTokenizer:
                 last_object_id = row[0]
                 first_observed = row[1]
             object_data.append(row)
-        object_data = np.array(object_data)
+        object_data = np.array(object_data, dtype=object)
         threshold = abs(object_data[:, 3]) / object_data[:, 4] > self.min_sn
         threshold = threshold.astype(int)
         window = np.ones(min(self.window_size, len(object_data)))

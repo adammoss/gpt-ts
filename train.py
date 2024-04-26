@@ -448,9 +448,9 @@ def main(args):
     training_config['num_val'] = num_val_sequences
     training_config['num_test'] = num_test_sequences
 
-    training_ids = np.array([x['object_id'] for x in train_sequences], dtype=np.int64)
-    val_ids = np.array([x['object_id'] for x in val_sequences], dtype=np.int64)
-    test_ids = np.array([x['object_id'] for x in test_sequences], dtype=np.int64)
+    training_ids = np.array([x['object_id'] for x in train_sequences])
+    val_ids = np.array([x['object_id'] for x in val_sequences])
+    test_ids = np.array([x['object_id'] for x in test_sequences])
     if args.output_dir is not None:
         np.save(os.path.join(args.output_dir, "training_ids.npy"), training_ids)
         np.save(os.path.join(args.output_dir, "val_ids.npy"), val_ids)
